@@ -44,7 +44,7 @@ public class DeviceRegistrationService {
         try {
             if (!validateIntegrityToken(request.getIntegrityToken())) {
                 logger.warn("Integrity token validation failed for clientId: {}", request.getClientId());
-                return new DeviceRegistrationResponse("error", "Integrity validation failed");
+                return DeviceRegistrationResponse.error("Integrity validation failed");
             }
             
             Optional<RegistrationKey> registrationKeyOpt = registrationKeyRepository
@@ -52,7 +52,7 @@ public class DeviceRegistrationService {
             
             if (registrationKeyOpt.isEmpty()) {
                 logger.warn("Invalid or inactive registration key for clientId: {}", request.getClientId());
-                return new DeviceRegistrationResponse("error", "Invalid registration key");
+                return DeviceRegistrationResponse.error("Invalid registration key");
             }
             
             RegistrationKey registrationKey = registrationKeyOpt.get();
@@ -60,12 +60,12 @@ public class DeviceRegistrationService {
             if (!registrationKey.getClientId().equals(request.getClientId())) {
                 logger.warn("Client ID mismatch for registration key. Expected: {}, Got: {}", 
                     registrationKey.getClientId(), request.getClientId());
-                return new DeviceRegistrationResponse("error", "Client ID mismatch");
+                return DeviceRegistrationResponse.error("Client ID mismatch");
             }
             
             if (registrationKey.isExpired()) {
                 logger.warn("Registration key has expired for clientId: {}", request.getClientId());
-                return new DeviceRegistrationResponse("error", "Registration key has expired");
+                return DeviceRegistrationResponse.error("Registration key has expired");
             }
             
             String deviceId = cryptographyService.generateDeviceId();
@@ -79,11 +79,11 @@ public class DeviceRegistrationService {
             logger.info("Device registered successfully with deviceId: {} for clientId: {}", 
                 deviceId, request.getClientId());
             
-            return new DeviceRegistrationResponse(savedDevice.getDeviceId(), savedDevice.getSecretKey());
+            return DeviceRegistrationResponse.success(savedDevice.getDeviceId(), savedDevice.getSecretKey());
             
         } catch (Exception e) {
             logger.error("Error during device registration for clientId: {}", request.getClientId(), e);
-            return new DeviceRegistrationResponse("error", "Internal server error during registration");
+            return DeviceRegistrationResponse.error("Internal server error during registration");
         }
     }
     

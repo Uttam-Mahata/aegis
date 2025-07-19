@@ -16,9 +16,15 @@ public class DeviceRegistrationResponse {
         this.message = "Device registered successfully";
     }
     
-    public DeviceRegistrationResponse(String status, String message) {
-        this.status = status;
-        this.message = message;
+    public static DeviceRegistrationResponse error(String message) {
+        DeviceRegistrationResponse response = new DeviceRegistrationResponse();
+        response.status = "error";
+        response.message = message;
+        return response;
+    }
+    
+    public static DeviceRegistrationResponse success(String deviceId, String secretKey) {
+        return new DeviceRegistrationResponse(deviceId, secretKey);
     }
     
     public String getDeviceId() {

@@ -54,8 +54,7 @@ public class DeviceController {
             logger.error("Unexpected error during device registration for clientId: {}", 
                 request.getClientId(), e);
             
-            DeviceRegistrationResponse errorResponse = new DeviceRegistrationResponse(
-                "error", "Internal server error");
+            DeviceRegistrationResponse errorResponse = DeviceRegistrationResponse.error("Internal server error");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
