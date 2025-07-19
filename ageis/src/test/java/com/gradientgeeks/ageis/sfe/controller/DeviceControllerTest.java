@@ -42,7 +42,7 @@ class DeviceControllerTest {
             null
         );
         
-        DeviceRegistrationResponse response = new DeviceRegistrationResponse(
+        DeviceRegistrationResponse response = DeviceRegistrationResponse.success(
             "dev_12345",
             "secret-key-12345"
         );
@@ -81,10 +81,7 @@ class DeviceControllerTest {
             null
         );
         
-        DeviceRegistrationResponse response = new DeviceRegistrationResponse(
-            "error",
-            "Invalid registration key"
-        );
+        DeviceRegistrationResponse response = DeviceRegistrationResponse.error("Invalid registration key");
         
         when(deviceRegistrationService.registerDevice(any(DeviceRegistrationRequest.class)))
             .thenReturn(response);
@@ -118,7 +115,7 @@ class DeviceControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpected(jsonPath("$.isValid").value(true))
+                .andExpect(jsonPath("$.isValid").value(true))
                 .andExpect(jsonPath("$.message").value("Signature is valid"))
                 .andExpect(jsonPath("$.deviceId").value("dev_12345"));
     }
