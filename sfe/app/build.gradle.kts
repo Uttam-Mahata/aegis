@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.ageis.sfe"
+    namespace = "com.aegis.sfe"
     compileSdk = 35
 
     defaultConfig {
@@ -38,6 +38,7 @@ android {
 
 dependencies {
 
+    // Core Android dependencies
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -46,7 +47,42 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    
+    // Aegis SFE Client SDK
+    implementation(project(":sfe-client"))
+    
+    // ViewModel and Navigation
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
+    implementation("androidx.navigation:navigation-compose:2.7.6")
+    
+    // Networking
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    
+    // State management
+    implementation("androidx.compose.runtime:runtime-livedata:1.5.8")
+    
+    // JSON parsing
+    implementation("com.google.code.gson:gson:2.10.1")
+    
+    // Date/Time handling
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
+    
+    // Icons
+    implementation("androidx.compose.material:material-icons-extended:1.5.8")
+    
+    // Preferences DataStore
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+    
+    // Testing
     testImplementation(libs.junit)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

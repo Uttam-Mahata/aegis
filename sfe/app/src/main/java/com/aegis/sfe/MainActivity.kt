@@ -1,17 +1,19 @@
-package com.ageis.sfe
+package com.aegis.sfe
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.ageis.sfe.ui.theme.SfeTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aegis.sfe.ui.navigation.AppNavigation
+import com.aegis.sfe.ui.navigation.Screen
+import com.aegis.sfe.ui.theme.SfeTheme
+import com.aegis.sfe.ui.viewmodel.DeviceProvisioningViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,11 +21,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SfeTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    UCOBankApp()
                 }
             }
         }
@@ -31,17 +33,16 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    SfeTheme {
-        Greeting("Android")
+fun UCOBankApp() {
+    val provisioningViewModel: DeviceProvisioningViewModel = viewModel()
+    val provisioningState by provisioningViewModel.provisioningState.collectAsState()
+    
+    // Determine the start destination based on provisioning status
+    val startDestination = if (provisioningState.isProvisioned) {
+        Screen.Dashboard.route
+    } else {
+        Screen.DeviceProvisioning.route
     }
+    
+    AppNavigation(startDestination = startDestination)
 }

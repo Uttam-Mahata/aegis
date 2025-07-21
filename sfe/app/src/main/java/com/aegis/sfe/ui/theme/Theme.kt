@@ -1,4 +1,4 @@
-package com.ageis.sfe.ui.theme
+package com.aegis.sfe.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme

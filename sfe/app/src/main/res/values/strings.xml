@@ -1,3 +1,32 @@
 <resources>
-    <string name="app_name">sfe</string>
+    <string name="app_name">UCO Bank</string>
+    <string name="app_tagline">Secured by Aegis</string>
+    <string name="device_provisioning_title">Device Setup</string>
+    <string name="transfer_money_title">Transfer Money</string>
+    <string name="transaction_history_title">Transaction History</string>
+    <string name="dashboard_title">Dashboard</string>
+    
+    <!-- Security Messages -->
+    <string name="security_active">Aegis Security Active</string>
+    <string name="security_description">All transactions are cryptographically secured</string>
+    <string name="secure_transfer">Secure Transfer</string>
+    <string name="secure_transfer_description">This transfer will be cryptographically signed</string>
+    
+    <!-- Error Messages -->
+    <string name="error_network">Network error. Please check your connection.</string>
+    <string name="error_unauthorized">Unauthorized request. Please try again.</string>
+    <string name="error_account_not_found">Account not found or invalid</string>
+    <string name="error_insufficient_balance">Insufficient balance for this transaction</string>
+    <string name="error_provisioning_failed">Device setup failed. Please try again.</string>
+    
+    <!-- Success Messages -->
+    <string name="success_transfer_completed">Transfer completed successfully</string>
+    <string name="success_device_provisioned">Device setup completed successfully</string>
+    
+    <!-- Button Labels -->
+    <string name="button_setup_device">Setup Device Security</string>
+    <string name="button_transfer_money">Transfer Money</string>
+    <string name="button_view_history">Transaction History</string>
+    <string name="button_refresh">Refresh</string>
+    <string name="button_dismiss">Dismiss</string>
 </resources>
