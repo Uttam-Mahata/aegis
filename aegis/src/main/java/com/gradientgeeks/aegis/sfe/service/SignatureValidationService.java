@@ -43,10 +43,25 @@ public class SignatureValidationService {
             
             Device device = deviceOpt.get();
             
+            // Log the received signature
+            logger.debug("Received signature: {}", request.getSignature());
+            logger.debug("String to sign: {}", request.getStringToSign());
+            
             if (!cryptographyService.isValidBase64(request.getSignature())) {
                 logger.warn("Invalid signature format for deviceId: {}", request.getDeviceId());
                 return new SignatureValidationResponse(false, "Invalid signature format");
             }
+            
+            // Mask the secret key for logging (show first 8 and last 4 characters)
+            String maskedKey = maskSecretKey(device.getSecretKey());
+            logger.debug("Using secret key (masked): {}", maskedKey);
+            
+            // Compute expected signature for comparison
+            String expectedSignature = cryptographyService.computeHmacSha256(
+                device.getSecretKey(),
+                request.getStringToSign()
+            );
+            logger.debug("Expected signature: {}", expectedSignature);
             
             boolean isValid = cryptographyService.verifyHmacSha256(
                 device.getSecretKey(),
@@ -60,6 +75,8 @@ public class SignatureValidationService {
                 return new SignatureValidationResponse(true, "Signature is valid", request.getDeviceId());
             } else {
                 logger.warn("Signature validation failed for deviceId: {}", request.getDeviceId());
+                logger.warn("Signature mismatch - Expected: {} but Received: {}", 
+                    expectedSignature, request.getSignature());
                 return new SignatureValidationResponse(false, "Signature is invalid");
             }
             
@@ -67,6 +84,13 @@ public class SignatureValidationService {
             logger.error("Error during signature validation for deviceId: {}", request.getDeviceId(), e);
             return new SignatureValidationResponse(false, "Internal server error during validation");
         }
+    }
+    
+    private String maskSecretKey(String secretKey) {
+        if (secretKey == null || secretKey.length() < 12) {
+            return "***INVALID***";
+        }
+        return secretKey.substring(0, 8) + "..." + secretKey.substring(secretKey.length() - 4);
     }
     
     @Transactional(readOnly = true)

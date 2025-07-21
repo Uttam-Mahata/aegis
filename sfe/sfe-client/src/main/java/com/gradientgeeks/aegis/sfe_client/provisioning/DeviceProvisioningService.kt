@@ -10,6 +10,9 @@ import com.gradientgeeks.aegis.sfe_client.model.DeviceRegistrationRequest
 import com.gradientgeeks.aegis.sfe_client.model.DeviceRegistrationResponse
 import com.gradientgeeks.aegis.sfe_client.security.IntegrityValidationService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import retrofit2.Response
 import java.util.UUID
@@ -35,7 +38,7 @@ class DeviceProvisioningService(
     
     companion object {
         private const val TAG = "DeviceProvisioningService"
-        private const val PREFS_NAME = "aegis_device_prefs"
+        private const val PREFS_NAME = "aegis_device_prefs"  // Keep original name to preserve credentials
         private const val PREF_DEVICE_ID = "device_id"
         private const val PREF_IS_PROVISIONED = "is_provisioned"
         private const val PREF_CLIENT_ID = "client_id"
@@ -43,6 +46,11 @@ class DeviceProvisioningService(
         
         // Keystore aliases
         private const val SECRET_KEY_ALIAS = "aegis_device_secret_key"
+        
+        // Thread safety
+        private val provisioningMutex = Mutex()
+        @Volatile
+        private var isProvisioningInProgress = false
     }
     
     private val sharedPrefs: SharedPreferences by lazy {
@@ -95,20 +103,44 @@ class DeviceProvisioningService(
      * 
      * @param clientId The client identifier for this application
      * @param registrationKey The shared registration key provided by administrators
+     * @param forceReprovisioning If true, will clear existing credentials and reprovision
      * @return ProvisioningResult indicating success or failure with details
      */
     suspend fun provisionDevice(
         clientId: String, 
-        registrationKey: String
+        registrationKey: String,
+        forceReprovisioning: Boolean = false
     ): ProvisioningResult = withContext(Dispatchers.IO) {
         
-        Log.i(TAG, "Starting device provisioning for client: $clientId")
+        Log.i(TAG, "Starting device provisioning for client: $clientId (force=$forceReprovisioning)")
+        
+        // Thread safety - prevent multiple simultaneous provisioning attempts
+        provisioningMutex.withLock {
+            if (isProvisioningInProgress) {
+                Log.w(TAG, "Provisioning already in progress, waiting...")
+                // Wait a bit and check again
+                delay(500)
+                if (isDeviceProvisioned()) {
+                    Log.i(TAG, "Device was provisioned by another thread")
+                    return@withContext ProvisioningResult.AlreadyProvisioned
+                }
+            }
+            isProvisioningInProgress = true
+        }
         
         try {
             // Step 1: Check if already provisioned
-            if (isDeviceProvisioned()) {
+            if (isDeviceProvisioned() && !forceReprovisioning) {
                 Log.w(TAG, "Device is already provisioned")
                 return@withContext ProvisioningResult.AlreadyProvisioned
+            }
+            
+            // Step 1.5: If force reprovisioning, clear existing data
+            if (forceReprovisioning) {
+                Log.i(TAG, "Force reprovisioning requested, clearing existing credentials")
+                clearProvisioningData()
+                // Small delay to ensure cleanup is complete
+                delay(100)
             }
             
             // Step 2: Generate device nonce for integrity validation
@@ -158,6 +190,10 @@ class DeviceProvisioningService(
         } catch (e: Exception) {
             Log.e(TAG, "Device provisioning failed with exception", e)
             ProvisioningResult.NetworkError(e.message ?: "Unknown network error")
+        } finally {
+            provisioningMutex.withLock {
+                isProvisioningInProgress = false
+            }
         }
     }
     
@@ -221,9 +257,6 @@ class DeviceProvisioningService(
             // Clear secret key from keystore
             cryptographyService.deleteKey(SECRET_KEY_ALIAS)
             
-            // Clear all related wrapper keys
-            cryptographyService.deleteKey("$SECRET_KEY_ALIAS-wrapper")
-            
             // Clear SharedPreferences
             sharedPrefs.edit().clear().apply()
             
@@ -266,6 +299,31 @@ class DeviceProvisioningService(
     private fun generateNonce(): String {
         val nonce = UUID.randomUUID().toString().replace("-", "")
         return Base64.encodeToString(nonce.toByteArray(), Base64.NO_WRAP)
+    }
+    
+    /**
+     * Handles authentication failure by checking if reprovisioning is needed.
+     * 
+     * This method should be called when requests fail with 401/403 errors
+     * to determine if the device needs to be reprovisioned.
+     * 
+     * @return True if device should be reprovisioned, false otherwise
+     */
+    fun shouldReprovisionOnAuthFailure(): Boolean {
+        if (!isDeviceProvisioned()) {
+            Log.d(TAG, "Device not provisioned, should provision")
+            return false // Not reprovisioning, just needs initial provisioning
+        }
+        
+        val provisioningTimestamp = sharedPrefs.getLong(PREF_PROVISIONING_TIMESTAMP, 0L)
+        val currentTime = System.currentTimeMillis()
+        val hoursSinceProvisioning = (currentTime - provisioningTimestamp) / (1000 * 60 * 60)
+        
+        Log.w(TAG, "Auth failure detected. Device was provisioned $hoursSinceProvisioning hours ago")
+        
+        // If device was provisioned very recently (within 1 hour) and still failing,
+        // it might indicate stale Keystore entries
+        return hoursSinceProvisioning < 1
     }
 }
 

@@ -1,5 +1,7 @@
 package com.gradientgeeks.aegis.sfe.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Mac;
@@ -15,6 +17,7 @@ import java.util.Base64;
 @Service
 public class CryptographyService {
     
+    private static final Logger logger = LoggerFactory.getLogger(CryptographyService.class);
     private static final String HMAC_SHA256 = "HmacSHA256";
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     
@@ -32,24 +35,41 @@ public class CryptographyService {
     
     public String computeHmacSha256(String secretKey, String data) {
         try {
+            logger.debug("Computing HMAC-SHA256 with data length: {} characters", data.length());
+            logger.trace("Data to sign: {}", data);
+            
             Mac mac = Mac.getInstance(HMAC_SHA256);
             SecretKeySpec secretKeySpec = new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), HMAC_SHA256);
             mac.init(secretKeySpec);
             byte[] hashBytes = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(hashBytes);
+            String signature = Base64.getEncoder().encodeToString(hashBytes);
+            
+            logger.debug("Computed HMAC-SHA256 signature: {}", signature);
+            return signature;
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            logger.error("Failed to compute HMAC-SHA256", e);
             throw new RuntimeException("Failed to compute HMAC-SHA256", e);
         }
     }
     
     public boolean verifyHmacSha256(String secretKey, String data, String expectedSignature) {
         try {
+            logger.debug("Verifying HMAC-SHA256 signature");
             String computedSignature = computeHmacSha256(secretKey, data);
-            return MessageDigest.isEqual(
+            
+            boolean isEqual = MessageDigest.isEqual(
                 computedSignature.getBytes(StandardCharsets.UTF_8),
                 expectedSignature.getBytes(StandardCharsets.UTF_8)
             );
+            
+            logger.debug("Signature verification result: {}", isEqual);
+            if (!isEqual) {
+                logger.debug("Computed: {} vs Expected: {}", computedSignature, expectedSignature);
+            }
+            
+            return isEqual;
         } catch (Exception e) {
+            logger.error("Error during HMAC-SHA256 verification", e);
             return false;
         }
     }

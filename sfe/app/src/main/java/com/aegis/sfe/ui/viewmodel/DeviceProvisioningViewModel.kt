@@ -44,6 +44,11 @@ class DeviceProvisioningViewModel : ViewModel() {
             
             Log.d(TAG, "Provisioning status: $isProvisioned, deviceId: $deviceId")
             
+            // If already provisioned, don't show provisioning screen
+            if (isProvisioned && !deviceId.isNullOrEmpty()) {
+                Log.d(TAG, "Device already provisioned with ID: $deviceId")
+            }
+            
         } catch (e: Exception) {
             Log.e(TAG, "Error checking provisioning status", e)
             _provisioningState.value = _provisioningState.value.copy(

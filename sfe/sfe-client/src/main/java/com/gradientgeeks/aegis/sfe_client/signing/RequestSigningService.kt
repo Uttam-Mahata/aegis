@@ -100,7 +100,12 @@ class RequestSigningService(
                 return null
             }
             
+            // Log details for debugging
             Log.d(TAG, "Successfully signed request")
+            Log.d(TAG, "DeviceId: $deviceId")
+            Log.d(TAG, "Signature: $signature")
+            Log.d(TAG, "Timestamp: $timestamp")
+            Log.d(TAG, "Nonce: $nonce")
             
             // Step 6: Return signed headers
             SignedRequestHeaders(
@@ -204,12 +209,12 @@ class RequestSigningService(
     }
     
     /**
-     * Generates an ISO 8601 timestamp for the current time.
+     * Generates a timestamp for the request.
      * 
-     * @return ISO 8601 formatted timestamp in UTC
+     * @return Timestamp as milliseconds since epoch
      */
     private fun generateTimestamp(): String {
-        return ISO_DATE_FORMAT.format(Date())
+        return System.currentTimeMillis().toString()
     }
     
     /**
@@ -224,13 +229,13 @@ class RequestSigningService(
     /**
      * Validates timestamp to ensure it's within acceptable time window.
      * 
-     * @param timestamp ISO 8601 timestamp to validate
+     * @param timestamp Timestamp in milliseconds as string
      * @param windowSeconds Acceptable time window in seconds (default 300 = 5 minutes)
      * @return True if timestamp is within window, false otherwise
      */
     fun isTimestampValid(timestamp: String, windowSeconds: Long = 300): Boolean {
         return try {
-            val requestTime = ISO_DATE_FORMAT.parse(timestamp)?.time ?: return false
+            val requestTime = timestamp.toLong()
             val currentTime = System.currentTimeMillis()
             val timeDiff = Math.abs(currentTime - requestTime) / 1000
             

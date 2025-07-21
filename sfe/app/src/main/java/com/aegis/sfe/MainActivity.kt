@@ -19,6 +19,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        Thread.setDefaultUncaughtExceptionHandler { _, exception ->
+            android.util.Log.e("MainActivity", "Uncaught exception", exception)
+        }
+        
         setContent {
             SfeTheme {
                 Surface(
@@ -37,11 +42,11 @@ fun UCOBankApp() {
     val provisioningViewModel: DeviceProvisioningViewModel = viewModel()
     val provisioningState by provisioningViewModel.provisioningState.collectAsState()
     
-    // Determine the start destination based on provisioning status
-    val startDestination = if (provisioningState.isProvisioned) {
-        Screen.Dashboard.route
-    } else {
-        Screen.DeviceProvisioning.route
+    // Determine the start destination based on provisioning and login status
+    val startDestination = when {
+        !provisioningState.isProvisioned -> Screen.DeviceProvisioning.route
+        UCOBankApplication.currentUser == null -> Screen.Login.route
+        else -> Screen.Dashboard.route
     }
     
     AppNavigation(startDestination = startDestination)

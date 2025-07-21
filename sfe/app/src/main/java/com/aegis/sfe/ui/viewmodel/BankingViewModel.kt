@@ -40,30 +40,51 @@ class BankingViewModel : ViewModel() {
     val transferState: StateFlow<TransferState> = _transferState.asStateFlow()
     
     init {
-        loadUserAccounts()
+        // Load accounts if user is already logged in
+        viewModelScope.launch {
+            if (com.aegis.sfe.UCOBankApplication.currentUser != null) {
+                android.util.Log.d(TAG, "User is logged in, waiting before loading accounts...")
+                // Small delay to ensure navigation and auth token are properly set
+                kotlinx.coroutines.delay(500)
+                loadUserAccounts()
+            } else {
+                android.util.Log.d(TAG, "No user logged in, skipping account load")
+            }
+        }
     }
     
     fun loadUserAccounts() {
         viewModelScope.launch {
-            repository.getUserAccounts(DEFAULT_USER_ID).collect { result ->
-                when (result) {
-                    is ApiResult.Loading -> {
-                        _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-                    }
-                    is ApiResult.Success -> {
-                        _userAccounts.value = result.data
-                        _selectedAccount.value = result.data.firstOrNull()
-                        _uiState.value = _uiState.value.copy(isLoading = false, error = null)
-                        Log.d(TAG, "Loaded ${result.data.size} user accounts")
-                    }
-                    is ApiResult.Error -> {
-                        _uiState.value = _uiState.value.copy(
-                            isLoading = false,
-                            error = result.message
-                        )
-                        Log.e(TAG, "Error loading user accounts: ${result.message}")
+            try {
+                // Use the actual logged-in user ID instead of default
+                val userId = com.aegis.sfe.UCOBankApplication.currentUser?.id?.toString() ?: DEFAULT_USER_ID
+                Log.d(TAG, "Loading accounts for userId: $userId")
+                repository.getUserAccounts(userId).collect { result ->
+                    when (result) {
+                        is ApiResult.Loading -> {
+                            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+                        }
+                        is ApiResult.Success -> {
+                            _userAccounts.value = result.data
+                            _selectedAccount.value = result.data.firstOrNull()
+                            _uiState.value = _uiState.value.copy(isLoading = false, error = null)
+                            Log.d(TAG, "Loaded ${result.data.size} user accounts")
+                        }
+                        is ApiResult.Error -> {
+                            _uiState.value = _uiState.value.copy(
+                                isLoading = false,
+                                error = result.message
+                            )
+                            Log.e(TAG, "Error loading user accounts: ${result.message}")
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception in loadUserAccounts", e)
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Failed to load accounts: ${e.message}"
+                )
             }
         }
     }

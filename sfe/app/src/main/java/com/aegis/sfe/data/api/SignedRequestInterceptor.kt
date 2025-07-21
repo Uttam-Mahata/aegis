@@ -2,7 +2,6 @@ package com.aegis.sfe.data.api
 
 import android.util.Log
 import com.aegis.sfe.UCOBankApplication
-import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.Response
 import okio.Buffer
@@ -37,13 +36,12 @@ class SignedRequestInterceptor : Interceptor {
             }
             
             // Sign the request using Aegis SDK
-            val signedHeaders = runBlocking {
-                UCOBankApplication.aegisClient.signRequest(
-                    method = original.method,
-                    uri = original.url.encodedPath + (original.url.encodedQuery?.let { "?$it" } ?: ""),
-                    body = requestBody
-                )
-            }
+            // Note: signRequest is a synchronous method, not a suspend function
+            val signedHeaders = UCOBankApplication.aegisClient.signRequest(
+                method = original.method,
+                uri = original.url.encodedPath + (original.url.encodedQuery?.let { "?$it" } ?: ""),
+                body = requestBody
+            )
             
             if (signedHeaders == null) {
                 Log.e(TAG, "Failed to sign request")
@@ -51,12 +49,18 @@ class SignedRequestInterceptor : Interceptor {
             }
             
             // Add signed headers to request
-            val signedRequest = original.newBuilder()
+            val requestBuilder = original.newBuilder()
                 .header("X-Device-Id", signedHeaders.deviceId)
                 .header("X-Signature", signedHeaders.signature)
                 .header("X-Timestamp", signedHeaders.timestamp)
                 .header("X-Nonce", signedHeaders.nonce)
-                .build()
+            
+            // Add auth token if available
+            UCOBankApplication.authToken?.let { token ->
+                requestBuilder.header("Authorization", "Bearer $token")
+            }
+            
+            val signedRequest = requestBuilder.build()
             
             Log.d(TAG, "Request signed successfully for ${original.url.encodedPath}")
             return chain.proceed(signedRequest)

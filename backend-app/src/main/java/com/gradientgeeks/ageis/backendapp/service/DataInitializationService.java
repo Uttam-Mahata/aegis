@@ -2,7 +2,9 @@ package com.gradientgeeks.ageis.backendapp.service;
 
 import com.gradientgeeks.ageis.backendapp.entity.Account;
 import com.gradientgeeks.ageis.backendapp.entity.AccountType;
+import com.gradientgeeks.ageis.backendapp.entity.User;
 import com.gradientgeeks.ageis.backendapp.repository.AccountRepository;
+import com.gradientgeeks.ageis.backendapp.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,14 +18,17 @@ import java.math.BigDecimal;
  */
 @Service
 @Transactional
+@org.springframework.context.annotation.DependsOn("userInitializationService")
 public class DataInitializationService {
     
     private static final Logger logger = LoggerFactory.getLogger(DataInitializationService.class);
     
     private final AccountRepository accountRepository;
+    private final UserRepository userRepository;
     
-    public DataInitializationService(AccountRepository accountRepository) {
+    public DataInitializationService(AccountRepository accountRepository, UserRepository userRepository) {
         this.accountRepository = accountRepository;
+        this.userRepository = userRepository;
     }
     
     @PostConstruct
@@ -36,11 +41,25 @@ public class DataInitializationService {
         
         logger.info("Initializing sample data...");
         
-        // Create sample accounts
-        createSampleAccount("123456789012", "USER001", "Anurag Sharma", BigDecimal.valueOf(50000), AccountType.SAVINGS);
-        createSampleAccount("123456789013", "USER001", "Anurag Sharma", BigDecimal.valueOf(100000), AccountType.CURRENT);
-        createSampleAccount("987654321098", "USER002", "Priya Patel", BigDecimal.valueOf(75000), AccountType.SAVINGS);
-        createSampleAccount("987654321099", "USER003", "Rajesh Kumar", BigDecimal.valueOf(25000), AccountType.SAVINGS);
+        // Get the actual user IDs from the database
+        User demo1 = userRepository.findByUsername("demo1").orElse(null);
+        User demo2 = userRepository.findByUsername("demo2").orElse(null);
+        
+        if (demo1 != null) {
+            // Create accounts for demo1 user
+            createSampleAccount("123456789012", String.valueOf(demo1.getId()), "Anurag Sharma", 
+                              BigDecimal.valueOf(50000), AccountType.SAVINGS);
+            createSampleAccount("123456789013", String.valueOf(demo1.getId()), "Anurag Sharma", 
+                              BigDecimal.valueOf(100000), AccountType.CURRENT);
+            logger.info("Created accounts for user demo1 with ID: {}", demo1.getId());
+        }
+        
+        if (demo2 != null) {
+            // Create account for demo2 user
+            createSampleAccount("987654321098", String.valueOf(demo2.getId()), "Priya Patel", 
+                              BigDecimal.valueOf(75000), AccountType.SAVINGS);
+            logger.info("Created account for user demo2 with ID: {}", demo2.getId());
+        }
         
         logger.info("Sample data initialization completed");
     }

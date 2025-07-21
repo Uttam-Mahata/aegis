@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.aegis.sfe.ui.screen.auth.LoginScreen
 import com.aegis.sfe.ui.screen.dashboard.DashboardScreen
 import com.aegis.sfe.ui.screen.provisioning.DeviceProvisioningScreen
 import com.aegis.sfe.ui.screen.transfer.TransferScreen
@@ -12,6 +13,7 @@ import com.aegis.sfe.ui.screen.history.TransactionHistoryScreen
 
 sealed class Screen(val route: String) {
     object DeviceProvisioning : Screen("device_provisioning")
+    object Login : Screen("login")
     object Dashboard : Screen("dashboard")
     object Transfer : Screen("transfer")
     object TransactionHistory : Screen("transaction_history")
@@ -29,8 +31,18 @@ fun AppNavigation(
         composable(Screen.DeviceProvisioning.route) {
             DeviceProvisioningScreen(
                 onProvisioningComplete = {
-                    navController.navigate(Screen.Dashboard.route) {
+                    navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.DeviceProvisioning.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+        
+        composable(Screen.Login.route) {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 }
             )

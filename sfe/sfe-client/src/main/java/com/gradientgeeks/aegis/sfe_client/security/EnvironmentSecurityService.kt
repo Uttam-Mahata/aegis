@@ -332,12 +332,17 @@ class EnvironmentSecurityService(private val context: Context) {
     // Emulator detection methods
     
     private fun checkEmulatorDeviceId(): Boolean {
-        val deviceId = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ANDROID_ID
-        )
-        
-        return deviceId in EMULATOR_DEVICE_IDS
+        return try {
+            val deviceId = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ANDROID_ID
+            )
+            
+            deviceId in EMULATOR_DEVICE_IDS
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to access ANDROID_ID: ${e.message}")
+            false
+        }
     }
     
     private fun checkEmulatorBuild(): Boolean {

@@ -82,7 +82,7 @@ class AegisSfeClient private constructor(
     }
     
     // Core services
-    private val cryptographyService = CryptographyService()
+    private val cryptographyService = CryptographyService(context)
     private val apiService = ApiClientFactory.createAegisApiService(baseUrl, enableLogging)
     private val integrityService = IntegrityValidationService(context)
     private val provisioningService = DeviceProvisioningService(
@@ -347,6 +347,15 @@ class AegisSfeClient private constructor(
                 "Emulator Detection"
             )
         )
+    }
+    
+    /**
+     * Gets access to the provisioning service for advanced operations.
+     * 
+     * @return DeviceProvisioningService instance
+     */
+    fun getProvisioningService(): DeviceProvisioningService {
+        return provisioningService
     }
 }
 

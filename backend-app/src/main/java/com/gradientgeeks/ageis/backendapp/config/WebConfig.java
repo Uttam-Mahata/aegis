@@ -1,6 +1,6 @@
 package com.gradientgeeks.ageis.backendapp.config;
 
-import com.gradientgeeks.ageis.backendapp.filter.CachingRequestBodyFilter;
+import com.gradientgeeks.ageis.backendapp.filter.RepeatableRequestBodyFilter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,9 +23,9 @@ public class WebConfig implements WebMvcConfigurer {
     }
     
     @Bean
-    public FilterRegistrationBean<CachingRequestBodyFilter> cachingRequestBodyFilter() {
-        FilterRegistrationBean<CachingRequestBodyFilter> registrationBean = new FilterRegistrationBean<>();
-        registrationBean.setFilter(new CachingRequestBodyFilter());
+    public FilterRegistrationBean<RepeatableRequestBodyFilter> repeatableRequestBodyFilter() {
+        FilterRegistrationBean<RepeatableRequestBodyFilter> registrationBean = new FilterRegistrationBean<>();
+        registrationBean.setFilter(new RepeatableRequestBodyFilter());
         registrationBean.addUrlPatterns("/api/v1/*");
         registrationBean.setOrder(1);
         return registrationBean;

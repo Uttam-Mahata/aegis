@@ -136,7 +136,8 @@ public class TransactionService {
         transaction.setSignatureTimestamp(signatureTimestamp);
         transaction.setStatus(TransactionStatus.PENDING);
         
-        return transactionRepository.save(transaction);
+        // Don't save yet - we need to set the account IDs first
+        return transaction;
     }
     
     /**

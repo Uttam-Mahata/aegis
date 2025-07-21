@@ -3,8 +3,14 @@ package com.aegis.sfe.ui.screen.dashboard
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Text
+import androidx.compose.material3.Button
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,9 +31,56 @@ fun DashboardScreen(
     onNavigateToHistory: () -> Unit,
     viewModel: BankingViewModel = viewModel()
 ) {
+    // Add logging for debugging
+    DisposableEffect(Unit) {
+        android.util.Log.d("DashboardScreen", "DashboardScreen composable created")
+        onDispose {
+            android.util.Log.d("DashboardScreen", "DashboardScreen composable disposed")
+        }
+    }
+    
     val uiState by viewModel.uiState.collectAsState()
     val userAccounts by viewModel.userAccounts.collectAsState()
     val selectedAccount by viewModel.selectedAccount.collectAsState()
+    
+    // Check if there's a critical error
+    if (uiState.error != null && userAccounts.isEmpty()) {
+        // Show full screen error
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "Error",
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Unable to load dashboard",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val errorMessage = uiState.error
+                Text(
+                    text = errorMessage ?: "Unknown error occurred",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { viewModel.refreshData() }) {
+                    Text("Retry")
+                }
+            }
+        }
+        return
+    }
     
     Scaffold(
         topBar = {
@@ -45,7 +98,7 @@ fun DashboardScreen(
                 onClick = onNavigateToTransfer,
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
-                Icon(Icons.Default.Send, contentDescription = "Transfer Money")
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Transfer Money")
             }
         }
     ) { paddingValues ->
@@ -227,7 +280,7 @@ private fun QuickActionsSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 QuickActionButton(
-                    icon = Icons.Default.Send,
+                    icon = Icons.AutoMirrored.Filled.Send,
                     label = "Transfer",
                     onClick = onTransferClick,
                     modifier = Modifier.weight(1f)

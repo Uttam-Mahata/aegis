@@ -79,7 +79,12 @@ public class DeviceRegistrationService {
             logger.info("Device registered successfully with deviceId: {} for clientId: {}", 
                 deviceId, request.getClientId());
             
-            return DeviceRegistrationResponse.success(savedDevice.getDeviceId(), savedDevice.getSecretKey());
+            // Encode the secret key as Base64 for the response
+            // The Android SDK expects the secret key to be Base64 encoded
+            String base64SecretKey = java.util.Base64.getEncoder()
+                .encodeToString(savedDevice.getSecretKey().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            
+            return DeviceRegistrationResponse.success(savedDevice.getDeviceId(), base64SecretKey);
             
         } catch (Exception e) {
             logger.error("Error during device registration for clientId: {}", request.getClientId(), e);

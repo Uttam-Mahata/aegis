@@ -104,17 +104,21 @@ public class AegisIntegrationService {
     
     /**
      * Creates the string to sign in the format expected by the Aegis API.
+     * Format: METHOD|URI|TIMESTAMP|NONCE|BODY_HASH
      */
     private String createStringToSign(String method, String uri, String timestamp, 
                                     String nonce, String bodyHash) {
         StringBuilder stringToSign = new StringBuilder();
-        stringToSign.append(method.toUpperCase()).append("\n");
-        stringToSign.append(uri).append("\n");
-        stringToSign.append(timestamp).append("\n");
-        stringToSign.append(nonce).append("\n");
+        stringToSign.append(method.toUpperCase()).append("|");
+        stringToSign.append(uri).append("|");
+        stringToSign.append(timestamp).append("|");
+        stringToSign.append(nonce).append("|");
         
         if (bodyHash != null && !bodyHash.isEmpty()) {
             stringToSign.append(bodyHash);
+        } else {
+            // Empty string for empty body, matching client SDK behavior
+            stringToSign.append("");
         }
         
         return stringToSign.toString();
@@ -122,12 +126,23 @@ public class AegisIntegrationService {
     
     /**
      * Computes SHA-256 hash of the given data.
+     * Returns hex-encoded hash to match Android SDK implementation.
      */
     public String computeSha256Hash(String data) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(data.getBytes());
-            return Base64.getEncoder().encodeToString(hash);
+            
+            // Convert to hex string to match Android SDK
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 algorithm not available", e);
         }

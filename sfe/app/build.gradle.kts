@@ -64,8 +64,8 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     
-    // State management
-    implementation("androidx.compose.runtime:runtime-livedata:1.5.8")
+    // State management - let BOM manage the version
+    implementation("androidx.compose.runtime:runtime-livedata")
     
     // JSON parsing
     implementation("com.google.code.gson:gson:2.10.1")
@@ -73,8 +73,8 @@ dependencies {
     // Date/Time handling
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
     
-    // Icons
-    implementation("androidx.compose.material:material-icons-extended:1.5.8")
+    // Icons - let BOM manage the version
+    implementation("androidx.compose.material:material-icons-extended")
     
     // Preferences DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")

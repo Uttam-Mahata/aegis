@@ -1,5 +1,6 @@
 package com.gradientgeeks.aegis.sfe_client.crypto
 
+import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -25,7 +26,7 @@ import javax.crypto.spec.SecretKeySpec
  * All cryptographic operations follow enterprise-grade security standards
  * and use hardware-backed security when available.
  */
-class CryptographyService {
+class CryptographyService(private val context: Context? = null) {
     
     companion object {
         private const val TAG = "CryptographyService"
@@ -36,6 +37,8 @@ class CryptographyService {
         // Secure random instance for key generation
         private val SECURE_RANDOM = SecureRandom()
     }
+    
+    private val secureKeyStorage: SecureKeyStorage? = context?.let { SecureKeyStorage(it) }
     
     /**
      * Generates a cryptographically secure secret key and stores it in Android Keystore.
@@ -77,7 +80,10 @@ class CryptographyService {
     }
     
     /**
-     * Retrieves a secret key from Android Keystore by alias.
+     * Retrieves a secret key by alias.
+     * 
+     * First checks Android Keystore for generated keys, then checks
+     * secure storage for external keys.
      * 
      * @param alias The alias of the key to retrieve
      * @return The secret key, or null if not found or retrieval failed
@@ -86,18 +92,27 @@ class CryptographyService {
         return try {
             Log.d(TAG, "Retrieving secret key with alias: $alias")
             
+            // First try Android Keystore for generated keys
             val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
             keyStore.load(null)
             
-            val secretKey = keyStore.getKey(alias, null) as? SecretKey
-            
-            if (secretKey != null) {
-                Log.d(TAG, "Successfully retrieved secret key with alias: $alias")
-            } else {
-                Log.w(TAG, "Secret key not found with alias: $alias")
+            val keystoreKey = keyStore.getKey(alias, null) as? SecretKey
+            if (keystoreKey != null) {
+                Log.d(TAG, "Successfully retrieved secret key from Android Keystore with alias: $alias")
+                return keystoreKey
             }
             
-            secretKey
+            // If not found in keystore, try secure storage for external keys
+            if (secureKeyStorage != null) {
+                val externalKey = secureKeyStorage.getExternalKey(alias)
+                if (externalKey != null) {
+                    Log.d(TAG, "Successfully retrieved external key from secure storage with alias: $alias")
+                    return externalKey
+                }
+            }
+            
+            Log.w(TAG, "Secret key not found with alias: $alias")
+            null
             
         } catch (e: Exception) {
             Log.e(TAG, "Failed to retrieve secret key with alias: $alias", e)
@@ -106,10 +121,10 @@ class CryptographyService {
     }
     
     /**
-     * Stores an externally provided secret key in Android Keystore.
+     * Stores an externally provided secret key securely.
      * 
      * This method is used when receiving a secret key from the Aegis API
-     * during device provisioning.
+     * during device provisioning. Uses SecureKeyStorage for secure storage.
      * 
      * @param alias The alias to store the key under
      * @param keyBytes The raw key material as byte array
@@ -119,22 +134,21 @@ class CryptographyService {
         return try {
             Log.d(TAG, "Storing external secret key with alias: $alias")
             
-            // For external keys, we need to use a different approach since Android Keystore
-            // doesn't directly support importing raw HMAC keys. We'll generate a keystore key
-            // and use it to encrypt the external key for secure storage.
-            
-            val keystoreKey = generateAndStoreSecretKey("$alias-wrapper")
-            if (keystoreKey == null) {
-                Log.e(TAG, "Failed to generate wrapper key for external key")
+            if (secureKeyStorage == null) {
+                Log.e(TAG, "SecureKeyStorage not available - context required")
                 return false
             }
             
-            // In a production implementation, you would encrypt the external key
-            // with the wrapper key and store it in secure storage
-            // For this demo, we'll note that the key should be stored securely
+            // Store the external key using secure storage
+            val success = secureKeyStorage.storeExternalKey(alias, keyBytes)
             
-            Log.d(TAG, "Successfully stored external secret key with alias: $alias")
-            true
+            if (success) {
+                Log.d(TAG, "Successfully stored external secret key with alias: $alias")
+            } else {
+                Log.e(TAG, "Failed to store external secret key with alias: $alias")
+            }
+            
+            success
             
         } catch (e: Exception) {
             Log.e(TAG, "Failed to store external secret key with alias: $alias", e)
@@ -290,16 +304,25 @@ class CryptographyService {
     }
     
     /**
-     * Checks if a key exists in the Android Keystore.
+     * Checks if a key exists.
+     * 
+     * Checks both Android Keystore and secure storage.
      * 
      * @param alias The alias to check for
      * @return True if key exists, false otherwise
      */
     fun keyExists(alias: String): Boolean {
         return try {
+            // Check Android Keystore
             val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
             keyStore.load(null)
-            keyStore.containsAlias(alias)
+            if (keyStore.containsAlias(alias)) {
+                return true
+            }
+            
+            // Check secure storage
+            secureKeyStorage?.keyExists(alias) ?: false
+            
         } catch (e: Exception) {
             Log.e(TAG, "Failed to check if key exists with alias: $alias", e)
             false
@@ -307,7 +330,9 @@ class CryptographyService {
     }
     
     /**
-     * Deletes a key from the Android Keystore.
+     * Deletes a key.
+     * 
+     * Attempts to delete from both Android Keystore and secure storage.
      * 
      * @param alias The alias of the key to delete
      * @return True if deletion was successful, false otherwise
@@ -316,17 +341,29 @@ class CryptographyService {
         return try {
             Log.d(TAG, "Deleting key with alias: $alias")
             
+            var deleted = false
+            
+            // Try to delete from Android Keystore
             val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
             keyStore.load(null)
             
             if (keyStore.containsAlias(alias)) {
                 keyStore.deleteEntry(alias)
-                Log.d(TAG, "Successfully deleted key with alias: $alias")
-                true
-            } else {
-                Log.w(TAG, "Key not found for deletion with alias: $alias")
-                false
+                Log.d(TAG, "Successfully deleted key from Android Keystore with alias: $alias")
+                deleted = true
             }
+            
+            // Try to delete from secure storage
+            if (secureKeyStorage?.deleteKey(alias) == true) {
+                Log.d(TAG, "Successfully deleted key from secure storage with alias: $alias")
+                deleted = true
+            }
+            
+            if (!deleted) {
+                Log.w(TAG, "Key not found for deletion with alias: $alias")
+            }
+            
+            deleted
             
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete key with alias: $alias", e)

@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.servlet.HandlerInterceptor;
-import org.springframework.web.util.ContentCachingRequestWrapper;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -133,23 +132,10 @@ public class AegisSecurityInterceptor implements HandlerInterceptor {
     private String computeBodyHash(HttpServletRequest request) throws Exception {
         // For POST/PUT requests, we need to read the body
         if ("POST".equalsIgnoreCase(request.getMethod()) || "PUT".equalsIgnoreCase(request.getMethod())) {
-            if (request instanceof ContentCachingRequestWrapper) {
-                ContentCachingRequestWrapper wrapper = (ContentCachingRequestWrapper) request;
-                byte[] body = wrapper.getContentAsByteArray();
-                if (body.length == 0) {
-                    // If no cached content, read from input stream
-                    body = StreamUtils.copyToByteArray(wrapper.getInputStream());
-                }
-                if (body.length > 0) {
-                    String bodyString = new String(body, StandardCharsets.UTF_8);
-                    return aegisIntegrationService.computeSha256Hash(bodyString);
-                }
-            } else {
-                // Fallback for non-wrapped requests
-                String body = StreamUtils.copyToString(request.getInputStream(), StandardCharsets.UTF_8);
-                if (!body.isEmpty()) {
-                    return aegisIntegrationService.computeSha256Hash(body);
-                }
+            // Read the body - our RepeatableRequestBodyFilter ensures this can be read multiple times
+            String body = StreamUtils.copyToString(request.getInputStream(), StandardCharsets.UTF_8);
+            if (!body.isEmpty()) {
+                return aegisIntegrationService.computeSha256Hash(body);
             }
         }
         return null;

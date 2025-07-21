@@ -17,7 +17,7 @@ class CryptographyServiceTest {
     
     @Before
     fun setUp() {
-        cryptographyService = CryptographyService()
+        cryptographyService = CryptographyService(null)  // Pass null for unit tests
     }
     
     @Test

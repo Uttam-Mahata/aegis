@@ -26,6 +26,7 @@ object ApiClientFactory {
     
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(SignedRequestInterceptor())
+        .addInterceptor(AuthErrorInterceptor())
         .addInterceptor(loggingInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -33,7 +34,7 @@ object ApiClientFactory {
         .build()
     
     private val retrofit = Retrofit.Builder()
-        .baseUrl(UCOBankApplication.BANK_API_BASE_URL)
+        .baseUrl("${UCOBankApplication.BANK_API_BASE_URL}/")
         .client(okHttpClient)
         .addConverterFactory(GsonConverterFactory.create(gson))
         .build()
