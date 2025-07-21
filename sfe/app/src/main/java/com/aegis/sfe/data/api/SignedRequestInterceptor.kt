@@ -37,9 +37,10 @@ class SignedRequestInterceptor : Interceptor {
             
             // Sign the request using Aegis SDK
             // Note: signRequest is a synchronous method, not a suspend function
+            // Use only the path without query parameters for signing (to match backend validation)
             val signedHeaders = UCOBankApplication.aegisClient.signRequest(
                 method = original.method,
-                uri = original.url.encodedPath + (original.url.encodedQuery?.let { "?$it" } ?: ""),
+                uri = original.url.encodedPath,
                 body = requestBody
             )
             
