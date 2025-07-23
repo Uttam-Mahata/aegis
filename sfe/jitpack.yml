@@ -1,4 +1,9 @@
 jdk:
   - openjdk11
 before_install:
-  - ./gradlew :sfe-client:build
+  - cd sfe
+  - ./gradlew :sfe-client:assembleRelease
+install:
+  - cd sfe
+  - ./gradlew :sfe-client:publishToMavenLocal
+  - find ~/.m2/repository -type f -name "*.aar" -o -name "*.pom" | head -20
