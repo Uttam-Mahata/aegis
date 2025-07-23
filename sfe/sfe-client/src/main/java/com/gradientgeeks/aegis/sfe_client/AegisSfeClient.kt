@@ -13,6 +13,9 @@ import com.gradientgeeks.aegis.sfe_client.security.SecurityCheckResult
 import com.gradientgeeks.aegis.sfe_client.signing.RequestSigningService
 import com.gradientgeeks.aegis.sfe_client.signing.SignedRequestHeaders
 import com.gradientgeeks.aegis.sfe_client.storage.SecureVaultService
+import com.gradientgeeks.aegis.sfe_client.session.SessionKeyManager
+import com.gradientgeeks.aegis.sfe_client.session.KeyExchangeService
+import com.gradientgeeks.aegis.sfe_client.encryption.PayloadEncryptionService
 
 /**
  * Main facade class for the Aegis SFE (Secure Frontend Environment) Client SDK.
@@ -91,6 +94,8 @@ class AegisSfeClient private constructor(
     private val signingService = RequestSigningService(cryptographyService, provisioningService)
     private val vaultService = SecureVaultService(context)
     private val environmentSecurityService = EnvironmentSecurityService(context)
+    private val sessionKeyManager = SessionKeyManager(context)
+    private val payloadEncryptionService = PayloadEncryptionService()
     
     /**
      * Checks if the device is already provisioned with valid credentials.
@@ -344,7 +349,10 @@ class AegisSfeClient private constructor(
                 "Hardware-backed Keystore",
                 "Runtime Security Checks",
                 "Root Detection",
-                "Emulator Detection"
+                "Emulator Detection",
+                "Session-based Encryption",
+                "ECDH Key Exchange",
+                "AES-256-GCM Payload Encryption"
             )
         )
     }
@@ -356,6 +364,170 @@ class AegisSfeClient private constructor(
      */
     fun getProvisioningService(): DeviceProvisioningService {
         return provisioningService
+    }
+    
+    // Session-based encryption methods
+    
+    /**
+     * Checks if there's an active session for encrypted communication.
+     * 
+     * @return True if active session exists, false otherwise
+     */
+    fun hasActiveSession(): Boolean {
+        return sessionKeyManager.hasActiveSession()
+    }
+    
+    /**
+     * Initiates a new session key exchange.
+     * This should be called after device provisioning and authentication.
+     * 
+     * @return Key exchange request to send to server, or null on failure
+     */
+    suspend fun initiateSession(): KeyExchangeService.KeyExchangeRequest? {
+        if (!isDeviceProvisioned()) {
+            Log.e(TAG, "Cannot initiate session: device is not provisioned")
+            return null
+        }
+        
+        Log.i(TAG, "Initiating new session key exchange")
+        return sessionKeyManager.initiateSession()
+    }
+    
+    /**
+     * Establishes a session using the server's key exchange response.
+     * 
+     * @param response Server's key exchange response
+     * @return True if session was established successfully
+     */
+    suspend fun establishSession(response: KeyExchangeService.KeyExchangeResponse): Boolean {
+        Log.i(TAG, "Establishing session: ${response.sessionId}")
+        return sessionKeyManager.establishSession(response)
+    }
+    
+    /**
+     * Gets the current session ID.
+     * 
+     * @return Current session ID or null if no active session
+     */
+    fun getCurrentSessionId(): String? {
+        return sessionKeyManager.getCurrentSessionId()
+    }
+    
+    /**
+     * Encrypts a payload using the current session key.
+     * 
+     * @param payload Data to encrypt
+     * @param associatedData Optional additional authenticated data
+     * @return Encrypted payload or null on failure
+     */
+    fun encryptPayload(
+        payload: String,
+        associatedData: String? = null
+    ): PayloadEncryptionService.EncryptedPayload? {
+        val sessionKey = sessionKeyManager.getCurrentSessionKey()
+        if (sessionKey == null) {
+            Log.e(TAG, "Cannot encrypt: no active session")
+            return null
+        }
+        
+        return payloadEncryptionService.encryptPayload(payload, sessionKey, associatedData)
+    }
+    
+    /**
+     * Decrypts a payload using the current session key.
+     * 
+     * @param encryptedPayload Encrypted payload to decrypt
+     * @return Decrypted data or null on failure
+     */
+    fun decryptPayload(
+        encryptedPayload: PayloadEncryptionService.EncryptedPayload
+    ): String? {
+        val sessionKey = sessionKeyManager.getCurrentSessionKey()
+        if (sessionKey == null) {
+            Log.e(TAG, "Cannot decrypt: no active session")
+            return null
+        }
+        
+        return payloadEncryptionService.decryptPayload(encryptedPayload, sessionKey)
+    }
+    
+    /**
+     * Creates a secure request with encrypted payload.
+     * 
+     * @param payload Request payload to encrypt
+     * @param method HTTP method
+     * @param uri Request URI
+     * @return Secure request or null on failure
+     */
+    fun createSecureRequest(
+        payload: String,
+        method: String,
+        uri: String
+    ): PayloadEncryptionService.SecureRequest? {
+        val sessionKey = sessionKeyManager.getCurrentSessionKey()
+        val sessionId = sessionKeyManager.getCurrentSessionId()
+        
+        if (sessionKey == null || sessionId == null) {
+            Log.e(TAG, "Cannot create secure request: no active session")
+            return null
+        }
+        
+        val metadata = PayloadEncryptionService.RequestMetadata(
+            method = method,
+            uri = uri,
+            timestamp = System.currentTimeMillis(),
+            sessionId = sessionId
+        )
+        
+        return payloadEncryptionService.createSecureRequest(payload, sessionKey, metadata)
+    }
+    
+    /**
+     * Extracts payload from a secure response.
+     * 
+     * @param secureResponse Secure response from server
+     * @param expectedMetadata Optional metadata for validation
+     * @return Decrypted payload or null on failure
+     */
+    fun extractSecureResponse(
+        secureResponse: PayloadEncryptionService.SecureResponse,
+        expectedMetadata: PayloadEncryptionService.ResponseMetadata? = null
+    ): String? {
+        val sessionKey = sessionKeyManager.getCurrentSessionKey()
+        if (sessionKey == null) {
+            Log.e(TAG, "Cannot extract response: no active session")
+            return null
+        }
+        
+        return payloadEncryptionService.extractSecureResponse(
+            secureResponse, sessionKey, expectedMetadata
+        )
+    }
+    
+    /**
+     * Clears the current session and all associated keys.
+     */
+    fun clearSession() {
+        Log.w(TAG, "Clearing current session")
+        sessionKeyManager.clearSession()
+    }
+    
+    /**
+     * Checks if the current session needs refresh.
+     * 
+     * @return True if session needs refresh (expiring soon)
+     */
+    fun sessionNeedsRefresh(): Boolean {
+        return sessionKeyManager.needsRefresh()
+    }
+    
+    /**
+     * Gets remaining time for current session in milliseconds.
+     * 
+     * @return Remaining time or 0 if no active session
+     */
+    fun getSessionRemainingTime(): Long {
+        return sessionKeyManager.getSessionRemainingTime()
     }
 }
 

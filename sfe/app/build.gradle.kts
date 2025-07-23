@@ -69,6 +69,8 @@ dependencies {
     
     // JSON parsing
     implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
     
     // Date/Time handling
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
