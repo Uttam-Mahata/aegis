@@ -10,7 +10,7 @@ class UCOBankApplication : Application() {
         const val AEGIS_API_BASE_URL = "http://192.168.177.12:8080/api"  // Physical device
         const val BANK_API_BASE_URL = "http://192.168.177.12:8081/api/v1"  // Physical device
         const val CLIENT_ID = "UCOBANK_PROD_ANDROID"
-        const val REGISTRATION_KEY = "ucobank_registration_key_2025"
+        const val REGISTRATION_KEY = "l4aqaaj47974uonvfcal7ahd17eqkru5d7hau2mpl3hnj37im37"
         
         // Global SDK instance
         lateinit var aegisClient: AegisSfeClient

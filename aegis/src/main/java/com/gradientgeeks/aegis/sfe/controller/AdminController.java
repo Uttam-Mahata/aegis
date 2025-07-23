@@ -3,6 +3,7 @@ package com.gradientgeeks.aegis.sfe.controller;
 import com.gradientgeeks.aegis.sfe.dto.RegistrationKeyRequest;
 import com.gradientgeeks.aegis.sfe.dto.RegistrationKeyResponse;
 import com.gradientgeeks.aegis.sfe.service.RegistrationKeyService;
+import com.gradientgeeks.aegis.sfe.util.SecurityUtils;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,23 +23,35 @@ public class AdminController {
     private static final Logger logger = LoggerFactory.getLogger(AdminController.class);
     
     private final RegistrationKeyService registrationKeyService;
+    private final SecurityUtils securityUtils;
     
     @Autowired
-    public AdminController(RegistrationKeyService registrationKeyService) {
+    public AdminController(RegistrationKeyService registrationKeyService, SecurityUtils securityUtils) {
         this.registrationKeyService = registrationKeyService;
+        this.securityUtils = securityUtils;
     }
     
     @PostMapping("/registration-keys")
     public ResponseEntity<RegistrationKeyResponse> generateRegistrationKey(
             @Valid @RequestBody RegistrationKeyRequest request) {
         
-        logger.info("Admin request to generate registration key for clientId: {}", request.getClientId());
+        String organization = securityUtils.getCurrentUserOrganization();
+        if (organization == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        logger.info("Request to generate registration key for clientId: {} by organization: {}", 
+            request.getClientId(), organization);
         
         try {
+            // Set the organization for the request
+            request.setOrganization(organization);
+            
             RegistrationKeyResponse response = registrationKeyService.generateRegistrationKey(request);
             
             if ("success".equals(response.getStatus())) {
-                logger.info("Registration key generated successfully for clientId: {}", request.getClientId());
+                logger.info("Registration key generated successfully for clientId: {} by organization: {}", 
+                    request.getClientId(), organization);
                 return ResponseEntity.status(HttpStatus.CREATED).body(response);
             } else {
                 logger.warn("Failed to generate registration key for clientId: {} - {}", 
@@ -58,11 +71,24 @@ public class AdminController {
     
     @GetMapping("/registration-keys")
     public ResponseEntity<List<RegistrationKeyResponse>> getAllRegistrationKeys() {
-        logger.info("Admin request to retrieve all registration keys");
+        String organization = securityUtils.getCurrentUserOrganization();
+        if (organization == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        logger.info("Request to retrieve registration keys for organization: {}", organization);
         
         try {
-            List<RegistrationKeyResponse> keys = registrationKeyService.getAllRegistrationKeys();
-            logger.info("Retrieved {} registration keys", keys.size());
+            // Admin users can see all keys, regular users only see their organization's keys
+            List<RegistrationKeyResponse> keys;
+            if (securityUtils.isAdmin()) {
+                keys = registrationKeyService.getAllRegistrationKeys();
+                logger.info("Admin retrieved all {} registration keys", keys.size());
+            } else {
+                keys = registrationKeyService.getRegistrationKeysByOrganization(organization);
+                logger.info("Retrieved {} registration keys for organization: {}", keys.size(), organization);
+            }
+            
             return ResponseEntity.ok(keys);
             
         } catch (Exception e) {
@@ -73,17 +99,30 @@ public class AdminController {
     
     @GetMapping("/registration-keys/{clientId}")
     public ResponseEntity<RegistrationKeyResponse> getRegistrationKey(@PathVariable String clientId) {
-        logger.info("Admin request to retrieve registration key for clientId: {}", clientId);
+        String organization = securityUtils.getCurrentUserOrganization();
+        if (organization == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        logger.info("Request to retrieve registration key for clientId: {} by organization: {}", 
+            clientId, organization);
         
         try {
-            Optional<RegistrationKeyResponse> response = registrationKeyService
-                .getRegistrationKeyByClientId(clientId);
+            Optional<RegistrationKeyResponse> response;
+            
+            // Admin can access any key, regular users only their organization's keys
+            if (securityUtils.isAdmin()) {
+                response = registrationKeyService.getRegistrationKeyByClientId(clientId);
+            } else {
+                response = registrationKeyService.getRegistrationKeyByClientIdAndOrganization(
+                    clientId, organization);
+            }
             
             if (response.isPresent()) {
                 logger.info("Registration key found for clientId: {}", clientId);
                 return ResponseEntity.ok(response.get());
             } else {
-                logger.warn("Registration key not found for clientId: {}", clientId);
+                logger.warn("Registration key not found or access denied for clientId: {}", clientId);
                 return ResponseEntity.notFound().build();
             }
             
@@ -95,9 +134,26 @@ public class AdminController {
     
     @PutMapping("/registration-keys/{clientId}/revoke")
     public ResponseEntity<RegistrationKeyResponse> revokeRegistrationKey(@PathVariable String clientId) {
-        logger.info("Admin request to revoke registration key for clientId: {}", clientId);
+        String organization = securityUtils.getCurrentUserOrganization();
+        if (organization == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        logger.info("Request to revoke registration key for clientId: {} by organization: {}", 
+            clientId, organization);
         
         try {
+            // Check if user has access to this key
+            if (!securityUtils.isAdmin()) {
+                Optional<RegistrationKeyResponse> keyCheck = registrationKeyService
+                    .getRegistrationKeyByClientIdAndOrganization(clientId, organization);
+                if (keyCheck.isEmpty()) {
+                    logger.warn("Access denied to revoke key for clientId: {} by organization: {}", 
+                        clientId, organization);
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
+            
             RegistrationKeyResponse response = registrationKeyService.revokeRegistrationKey(clientId);
             
             if ("success".equals(response.getStatus()) || response.getStatus() == null) {
@@ -120,9 +176,26 @@ public class AdminController {
     
     @PutMapping("/registration-keys/{clientId}/regenerate")
     public ResponseEntity<RegistrationKeyResponse> regenerateRegistrationKey(@PathVariable String clientId) {
-        logger.info("Admin request to regenerate registration key for clientId: {}", clientId);
+        String organization = securityUtils.getCurrentUserOrganization();
+        if (organization == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        logger.info("Request to regenerate registration key for clientId: {} by organization: {}", 
+            clientId, organization);
         
         try {
+            // Check if user has access to this key
+            if (!securityUtils.isAdmin()) {
+                Optional<RegistrationKeyResponse> keyCheck = registrationKeyService
+                    .getRegistrationKeyByClientIdAndOrganization(clientId, organization);
+                if (keyCheck.isEmpty()) {
+                    logger.warn("Access denied to regenerate key for clientId: {} by organization: {}", 
+                        clientId, organization);
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
+            
             RegistrationKeyResponse response = registrationKeyService.regenerateRegistrationKey(clientId);
             
             if ("success".equals(response.getStatus()) || response.getStatus() == null) {
