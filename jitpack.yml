@@ -1,5 +1,5 @@
 jdk:
-  - openjdk11
+  - openjdk21
 before_install:
   - cd sfe
   - ./gradlew :sfe-client:assembleRelease
