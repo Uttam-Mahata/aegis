@@ -16,6 +16,14 @@ import com.gradientgeeks.aegis.sfe_client.storage.SecureVaultService
 import com.gradientgeeks.aegis.sfe_client.session.SessionKeyManager
 import com.gradientgeeks.aegis.sfe_client.session.KeyExchangeService
 import com.gradientgeeks.aegis.sfe_client.encryption.PayloadEncryptionService
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Main facade class for the Aegis SFE (Secure Frontend Environment) Client SDK.
