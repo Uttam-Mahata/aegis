@@ -27,6 +27,7 @@ export interface AuthState {
     name: string;
     email: string;
     organization: string;
+    role?: string;
   };
   token?: string;
 }

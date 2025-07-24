@@ -27,6 +27,7 @@ import {
   Person as PersonIcon,
   Logout as LogoutIcon,
   Security as SecurityIcon,
+  Business as BusinessIcon,
 } from '@mui/icons-material';
 import { authService } from '../services/auth';
 
@@ -62,6 +63,7 @@ const Layout: React.FC = () => {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Registration Keys', icon: <KeyIcon />, path: '/registration-keys' },
+    ...(user?.role === 'ADMIN' ? [{ text: 'Organization Approval', icon: <BusinessIcon />, path: '/organizations' }] : []),
     { text: 'Profile', icon: <PersonIcon />, path: '/profile' },
   ];
 

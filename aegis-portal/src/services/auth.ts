@@ -16,6 +16,7 @@ export const authService = {
           name: data.name,
           email: data.email,
           organization: data.organization,
+          role: data.role,
         },
         token: data.token,
       };
@@ -25,7 +26,9 @@ export const authService = {
       
       return authState;
     } catch (error: any) {
-      if (error.response?.status === 401) {
+      if (error.response?.status === 401 && error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.response?.status === 401) {
         throw new Error('Invalid email or password');
       }
       throw new Error('Login failed. Please try again.');

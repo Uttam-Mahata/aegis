@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -35,6 +35,13 @@ const steps = ['Enter Details', 'Review & Create', 'Get Your Key'];
 const CreateKey: React.FC = () => {
   const navigate = useNavigate();
   const user = authService.getCurrentUser().user;
+  
+  // Redirect admin users immediately
+  useEffect(() => {
+    if (user?.role === 'ADMIN') {
+      navigate('/registration-keys');
+    }
+  }, [user, navigate]);
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -277,6 +284,11 @@ const CreateKey: React.FC = () => {
         return null;
     }
   };
+
+  // Don't render anything if admin user (they'll be redirected)
+  if (user?.role === 'ADMIN') {
+    return null;
+  }
 
   return (
     <Box>

@@ -137,17 +137,29 @@ const Register: React.FC = () => {
         description: formData.description || undefined,
       });
       
-      // Store auth data
-      localStorage.setItem('authToken', response.data.token);
-      localStorage.setItem('user', JSON.stringify({
-        id: response.data.id,
-        name: response.data.name,
-        email: response.data.email,
-        organization: response.data.organization,
-      }));
-      
-      // Navigate to dashboard
-      navigate('/dashboard');
+      // Check if we got a token (admin users can login immediately)
+      if (response.data.token) {
+        // Store auth data
+        localStorage.setItem('authToken', response.data.token);
+        localStorage.setItem('user', JSON.stringify({
+          id: response.data.id,
+          name: response.data.name,
+          email: response.data.email,
+          organization: response.data.organization,
+          role: response.data.role,
+        }));
+        
+        // Navigate to dashboard
+        navigate('/dashboard');
+      } else {
+        // Show success message for pending approval
+        navigate('/login', { 
+          state: { 
+            message: 'Registration successful! Your account is pending approval. You will be notified once approved.',
+            severity: 'success'
+          } 
+        });
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {

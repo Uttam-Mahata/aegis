@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import RegistrationKeys from './pages/RegistrationKeys';
 import CreateKey from './pages/CreateKey';
 import Profile from './pages/Profile';
+import OrganizationApproval from './pages/OrganizationApproval';
 
 // Components
 import Layout from './components/Layout';
@@ -60,6 +61,7 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/registration-keys" element={<RegistrationKeys />} />
               <Route path="/registration-keys/create" element={<CreateKey />} />
+              <Route path="/organizations" element={<OrganizationApproval />} />
               <Route path="/profile" element={<Profile />} />
             </Route>
           </Route>

@@ -136,18 +136,26 @@ const RegistrationKeys: React.FC = () => {
             Managing keys for {user?.organization || 'your organization'}
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/registration-keys/create')}
-        >
-          Create New Key
-        </Button>
+        {user?.role !== 'ADMIN' && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => navigate('/registration-keys/create')}
+          >
+            Create New Key
+          </Button>
+        )}
       </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
+        </Alert>
+      )}
+
+      {user?.role === 'ADMIN' && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          As an admin user, you can view registration keys but cannot create, modify, or revoke them. This is a security measure to ensure proper separation of duties.
         </Alert>
       )}
 
@@ -187,13 +195,15 @@ const RegistrationKeys: React.FC = () => {
                   <Typography variant="body1" color="textSecondary">
                     No registration keys found
                   </Typography>
-                  <Button
-                    variant="contained"
-                    sx={{ mt: 2 }}
-                    onClick={() => navigate('/registration-keys/create')}
-                  >
-                    Create Your First Key
-                  </Button>
+                  {user?.role !== 'ADMIN' && (
+                    <Button
+                      variant="contained"
+                      sx={{ mt: 2 }}
+                      onClick={() => navigate('/registration-keys/create')}
+                    >
+                      Create Your First Key
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ) : (
@@ -206,23 +216,29 @@ const RegistrationKeys: React.FC = () => {
                   </TableCell>
                   <TableCell>{key.description || '-'}</TableCell>
                   <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                        {visibleKeys.has(key.id) ? key.registrationKey : maskKey(key.registrationKey)}
+                    {user?.role === 'ADMIN' ? (
+                      <Typography variant="body2" color="textSecondary">
+                        (Hidden from admin)
                       </Typography>
-                      <IconButton
-                        size="small"
-                        onClick={() => toggleKeyVisibility(key.id)}
-                      >
-                        {visibleKeys.has(key.id) ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleCopyKey(key.registrationKey)}
-                      >
-                        <CopyIcon />
-                      </IconButton>
-                    </Box>
+                    ) : (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                          {visibleKeys.has(key.id) ? key.registrationKey : maskKey(key.registrationKey)}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          onClick={() => toggleKeyVisibility(key.id)}
+                        >
+                          {visibleKeys.has(key.id) ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleCopyKey(key.registrationKey)}
+                        >
+                          <CopyIcon />
+                        </IconButton>
+                      </Box>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -236,24 +252,32 @@ const RegistrationKeys: React.FC = () => {
                     {key.expiresAt ? format(new Date(key.expiresAt), 'MMM dd, yyyy') : 'Never'}
                   </TableCell>
                   <TableCell align="right">
-                    <Tooltip title="Regenerate Key">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRegenerateKey(key.clientId)}
-                        disabled={!key.isActive}
-                      >
-                        <RefreshIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={key.isActive ? 'Revoke Key' : 'Key Already Revoked'}>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRevokeKey(key.clientId)}
-                        disabled={!key.isActive}
-                      >
-                        <BlockIcon />
-                      </IconButton>
-                    </Tooltip>
+                    {user?.role !== 'ADMIN' ? (
+                      <>
+                        <Tooltip title="Regenerate Key">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleRegenerateKey(key.clientId)}
+                            disabled={!key.isActive}
+                          >
+                            <RefreshIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={key.isActive ? 'Revoke Key' : 'Key Already Revoked'}>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleRevokeKey(key.clientId)}
+                            disabled={!key.isActive}
+                          >
+                            <BlockIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    ) : (
+                      <Typography variant="caption" color="textSecondary">
+                        No actions available
+                      </Typography>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

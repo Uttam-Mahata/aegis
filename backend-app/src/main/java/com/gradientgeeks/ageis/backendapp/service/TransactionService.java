@@ -41,7 +41,7 @@ public class TransactionService {
      * Processes a money transfer between accounts.
      * Uses pessimistic locking to prevent race conditions.
      */
-    @Transactional(isolation = Isolation.SERIALIZABLE)
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public TransferResponse processTransfer(TransferRequest request, String deviceId, 
                                           String signature, String nonce, 
                                           LocalDateTime signatureTimestamp) {

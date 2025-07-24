@@ -43,6 +43,16 @@ public class User {
     @Column(nullable = false)
     private Boolean active = true;
     
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
+    
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+    
+    @Column(name = "approved_by")
+    private String approvedBy;
+    
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
     
@@ -179,11 +189,44 @@ public class User {
         this.lastLogin = lastLogin;
     }
     
+    public ApprovalStatus getApprovalStatus() {
+        return approvalStatus;
+    }
+    
+    public void setApprovalStatus(ApprovalStatus approvalStatus) {
+        this.approvalStatus = approvalStatus;
+    }
+    
+    public LocalDateTime getApprovedAt() {
+        return approvedAt;
+    }
+    
+    public void setApprovedAt(LocalDateTime approvedAt) {
+        this.approvedAt = approvedAt;
+    }
+    
+    public String getApprovedBy() {
+        return approvedBy;
+    }
+    
+    public void setApprovedBy(String approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+    
     /**
      * User roles in the system
      */
     public enum UserRole {
         ADMIN,  // System administrator
         USER    // Organization user
+    }
+    
+    /**
+     * Approval status for organization users
+     */
+    public enum ApprovalStatus {
+        PENDING,    // Awaiting admin approval
+        APPROVED,   // Approved by admin
+        REJECTED    // Rejected by admin
     }
 }

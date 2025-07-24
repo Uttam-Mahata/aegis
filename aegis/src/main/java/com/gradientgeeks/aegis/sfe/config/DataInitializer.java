@@ -32,6 +32,10 @@ public class DataInitializer {
                 adminUser.setContactPerson("System Administrator");
                 adminUser.setPhone("+1 (555) 123-4567");
                 adminUser.setAddress("123 Security Street, Tech City, TC 12345");
+                // Admin users are always approved
+                adminUser.setApprovalStatus(User.ApprovalStatus.APPROVED);
+                adminUser.setApprovedAt(java.time.LocalDateTime.now());
+                adminUser.setApprovedBy("SYSTEM");
                 
                 userRepository.save(adminUser);
                 logger.info("Created demo admin user: admin@aegis.com");
@@ -48,6 +52,10 @@ public class DataInitializer {
                 bankUser.setContactPerson("Bank Administrator");
                 bankUser.setPhone("+1 (555) 234-5678");
                 bankUser.setAddress("456 Banking Avenue, Finance District, FD 67890");
+                // Demo user - already approved
+                bankUser.setApprovalStatus(User.ApprovalStatus.APPROVED);
+                bankUser.setApprovedAt(java.time.LocalDateTime.now());
+                bankUser.setApprovedBy("SYSTEM");
                 
                 userRepository.save(bankUser);
                 logger.info("Created demo bank user: bank@ucobank.com");
@@ -64,6 +72,10 @@ public class DataInitializer {
                 fintechUser.setContactPerson("Technical Administrator");
                 fintechUser.setPhone("+1 (555) 345-6789");
                 fintechUser.setAddress("789 Innovation Hub, Tech Park, TP 13579");
+                // Demo user - already approved
+                fintechUser.setApprovalStatus(User.ApprovalStatus.APPROVED);
+                fintechUser.setApprovedAt(java.time.LocalDateTime.now());
+                fintechUser.setApprovedBy("SYSTEM");
                 
                 userRepository.save(fintechUser);
                 logger.info("Created demo fintech user: fintech@paytm.com");

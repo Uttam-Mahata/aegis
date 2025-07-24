@@ -74,4 +74,33 @@ export const registrationKeyService = {
   },
 };
 
+export const adminService = {
+  // Get all organizations
+  getAllOrganizations: async (): Promise<any[]> => {
+    const response = await api.get('/organizations');
+    return response.data;
+  },
+
+  // Get pending organizations
+  getPendingOrganizations: async (): Promise<any[]> => {
+    const response = await api.get('/organizations/pending');
+    return response.data;
+  },
+
+  // Approve an organization
+  approveOrganization: async (userId: number, approvedBy: string): Promise<any> => {
+    const response = await api.post(`/organizations/${userId}/approve`, { approvedBy });
+    return response.data;
+  },
+
+  // Reject an organization
+  rejectOrganization: async (userId: number, rejectedBy: string, reason?: string): Promise<any> => {
+    const response = await api.post(`/organizations/${userId}/reject`, { 
+      approvedBy: rejectedBy,
+      reason 
+    });
+    return response.data;
+  },
+};
+
 export default api;

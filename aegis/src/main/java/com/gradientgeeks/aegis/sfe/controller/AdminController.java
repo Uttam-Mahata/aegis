@@ -1,7 +1,8 @@
 package com.gradientgeeks.aegis.sfe.controller;
 
-import com.gradientgeeks.aegis.sfe.dto.RegistrationKeyRequest;
-import com.gradientgeeks.aegis.sfe.dto.RegistrationKeyResponse;
+import com.gradientgeeks.aegis.sfe.dto.*;
+import com.gradientgeeks.aegis.sfe.entity.User;
+import com.gradientgeeks.aegis.sfe.service.AdminService;
 import com.gradientgeeks.aegis.sfe.service.RegistrationKeyService;
 import com.gradientgeeks.aegis.sfe.util.SecurityUtils;
 import jakarta.validation.Valid;
@@ -10,9 +11,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -24,11 +28,13 @@ public class AdminController {
     
     private final RegistrationKeyService registrationKeyService;
     private final SecurityUtils securityUtils;
+    private final AdminService adminService;
     
     @Autowired
-    public AdminController(RegistrationKeyService registrationKeyService, SecurityUtils securityUtils) {
+    public AdminController(RegistrationKeyService registrationKeyService, SecurityUtils securityUtils, AdminService adminService) {
         this.registrationKeyService = registrationKeyService;
         this.securityUtils = securityUtils;
+        this.adminService = adminService;
     }
     
     @PostMapping("/registration-keys")
@@ -38,6 +44,14 @@ public class AdminController {
         String organization = securityUtils.getCurrentUserOrganization();
         if (organization == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        // Prevent admin users from creating registration keys
+        if (securityUtils.isAdmin()) {
+            logger.warn("Admin user attempted to create registration key");
+            RegistrationKeyResponse errorResponse = new RegistrationKeyResponse(
+                "error", "Admin users cannot create registration keys");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
         }
         
         logger.info("Request to generate registration key for clientId: {} by organization: {}", 
@@ -83,7 +97,9 @@ public class AdminController {
             List<RegistrationKeyResponse> keys;
             if (securityUtils.isAdmin()) {
                 keys = registrationKeyService.getAllRegistrationKeys();
-                logger.info("Admin retrieved all {} registration keys", keys.size());
+                // Hide registration keys from admin
+                keys.forEach(key -> key.setRegistrationKey(null));
+                logger.info("Admin retrieved all {} registration keys (keys hidden)", keys.size());
             } else {
                 keys = registrationKeyService.getRegistrationKeysByOrganization(organization);
                 logger.info("Retrieved {} registration keys for organization: {}", keys.size(), organization);
@@ -113,6 +129,10 @@ public class AdminController {
             // Admin can access any key, regular users only their organization's keys
             if (securityUtils.isAdmin()) {
                 response = registrationKeyService.getRegistrationKeyByClientId(clientId);
+                // Hide registration key from admin
+                if (response.isPresent()) {
+                    response.get().setRegistrationKey(null);
+                }
             } else {
                 response = registrationKeyService.getRegistrationKeyByClientIdAndOrganization(
                     clientId, organization);
@@ -137,6 +157,14 @@ public class AdminController {
         String organization = securityUtils.getCurrentUserOrganization();
         if (organization == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        // Prevent admin users from revoking registration keys
+        if (securityUtils.isAdmin()) {
+            logger.warn("Admin user attempted to revoke registration key");
+            RegistrationKeyResponse errorResponse = new RegistrationKeyResponse(
+                "error", "Admin users cannot revoke registration keys");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
         }
         
         logger.info("Request to revoke registration key for clientId: {} by organization: {}", 
@@ -181,6 +209,14 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         
+        // Prevent admin users from regenerating registration keys
+        if (securityUtils.isAdmin()) {
+            logger.warn("Admin user attempted to regenerate registration key");
+            RegistrationKeyResponse errorResponse = new RegistrationKeyResponse(
+                "error", "Admin users cannot regenerate registration keys");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+        }
+        
         logger.info("Request to regenerate registration key for clientId: {} by organization: {}", 
             clientId, organization);
         
@@ -219,5 +255,97 @@ public class AdminController {
     @GetMapping("/health")
     public ResponseEntity<String> adminHealth() {
         return ResponseEntity.ok("Aegis Admin API is running");
+    }
+    
+    /**
+     * Get all organizations pending approval (Admin only)
+     * @return List of organizations pending approval
+     */
+    @GetMapping("/organizations/pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<OrganizationDto>> getPendingOrganizations() {
+        logger.info("Admin fetching pending organizations");
+        
+        try {
+            List<OrganizationDto> organizations = adminService.getPendingOrganizations();
+            logger.info("Found {} pending organizations", organizations.size());
+            return ResponseEntity.ok(organizations);
+        } catch (Exception e) {
+            logger.error("Error fetching pending organizations", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    /**
+     * Get all organizations (Admin only)
+     * @return List of all organizations
+     */
+    @GetMapping("/organizations")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<OrganizationDto>> getAllOrganizations() {
+        logger.info("Admin fetching all organizations");
+        
+        try {
+            List<OrganizationDto> organizations = adminService.getAllOrganizations();
+            logger.info("Found {} organizations", organizations.size());
+            return ResponseEntity.ok(organizations);
+        } catch (Exception e) {
+            logger.error("Error fetching organizations", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    /**
+     * Approve an organization (Admin only)
+     * @param userId the user ID to approve
+     * @param approvalRequest approval details
+     * @return Updated organization details
+     */
+    @PostMapping("/organizations/{userId}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> approveOrganization(
+            @PathVariable Long userId,
+            @Valid @RequestBody ApprovalRequest approvalRequest) {
+        
+        logger.info("Admin approving organization for user ID: {}", userId);
+        
+        try {
+            OrganizationDto approvedOrg = adminService.approveOrganization(userId, approvalRequest.getApprovedBy());
+            logger.info("Organization approved successfully: {}", approvedOrg.getOrganization());
+            return ResponseEntity.ok(approvedOrg);
+        } catch (RuntimeException e) {
+            logger.error("Failed to approve organization: {}", e.getMessage());
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            error.put("status", "error");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
+    
+    /**
+     * Reject an organization (Admin only)
+     * @param userId the user ID to reject
+     * @param approvalRequest rejection details
+     * @return Updated organization details
+     */
+    @PostMapping("/organizations/{userId}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> rejectOrganization(
+            @PathVariable Long userId,
+            @Valid @RequestBody ApprovalRequest approvalRequest) {
+        
+        logger.info("Admin rejecting organization for user ID: {}", userId);
+        
+        try {
+            OrganizationDto rejectedOrg = adminService.rejectOrganization(userId, approvalRequest.getApprovedBy());
+            logger.info("Organization rejected successfully: {}", rejectedOrg.getOrganization());
+            return ResponseEntity.ok(rejectedOrg);
+        } catch (RuntimeException e) {
+            logger.error("Failed to reject organization: {}", e.getMessage());
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            error.put("status", "error");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
     }
 }

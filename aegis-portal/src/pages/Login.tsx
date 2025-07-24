@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -11,6 +11,7 @@ import {
   InputAdornment,
   IconButton,
   Link,
+  Snackbar,
 } from '@mui/material';
 import {
   Security as SecurityIcon,
@@ -23,11 +24,22 @@ import { authService } from '../services/auth';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    // Check if there's a message from registration
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+      // Clear the state to prevent showing the message again on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +49,14 @@ const Login: React.FC = () => {
     try {
       await authService.login({ email, password });
       navigate('/dashboard');
-    } catch (err) {
-      setError('Invalid email or password. Please try again.');
+    } catch (err: any) {
+      if (err.message?.includes('pending approval')) {
+        setError('Your account is pending approval. Please wait for admin approval.');
+      } else if (err.message?.includes('rejected')) {
+        setError('Your account approval was rejected. Please contact the administrator.');
+      } else {
+        setError(err.message || 'Invalid email or password. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -77,6 +95,12 @@ const Login: React.FC = () => {
           <Typography component="h2" variant="h6" color="textSecondary" mb={3}>
             Bank & Fintech Management Portal
           </Typography>
+
+          {successMessage && (
+            <Alert severity="success" sx={{ width: '100%', mb: 2 }} onClose={() => setSuccessMessage('')}>
+              {successMessage}
+            </Alert>
+          )}
 
           {error && (
             <Alert severity="error" sx={{ width: '100%', mb: 2 }}>

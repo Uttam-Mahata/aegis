@@ -37,4 +37,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return List of users in the organization
      */
     java.util.List<User> findByOrganization(String organization);
+    
+    /**
+     * Find users by approval status and role
+     * @param approvalStatus the approval status
+     * @param role the user role
+     * @return List of users matching the criteria
+     */
+    java.util.List<User> findByApprovalStatusAndRole(User.ApprovalStatus approvalStatus, User.UserRole role);
+    
+    /**
+     * Find users by role
+     * @param role the user role
+     * @return List of users with the specified role
+     */
+    java.util.List<User> findByRole(User.UserRole role);
 }

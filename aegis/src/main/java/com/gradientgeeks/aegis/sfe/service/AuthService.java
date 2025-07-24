@@ -51,6 +51,17 @@ public class AuthService {
             throw new RuntimeException("Account is inactive");
         }
         
+        // Check approval status for organization users
+        if (user.getRole() == User.UserRole.USER) {
+            if (user.getApprovalStatus() == User.ApprovalStatus.PENDING) {
+                logger.warn("Pending approval user attempted login: {}", loginRequest.getEmail());
+                throw new RuntimeException("Account is pending approval");
+            } else if (user.getApprovalStatus() == User.ApprovalStatus.REJECTED) {
+                logger.warn("Rejected user attempted login: {}", loginRequest.getEmail());
+                throw new RuntimeException("Account approval was rejected");
+            }
+        }
+        
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
             logger.warn("Invalid password attempt for email: {}", loginRequest.getEmail());
             throw new RuntimeException("Invalid email or password");
