@@ -8,8 +8,8 @@ class UCOBankApplication : Application() {
     
     companion object {
         // Configuration constants
-        const val AEGIS_API_BASE_URL = "http://192.168.174.12:8080/api"  // Physical device
-        const val BANK_API_BASE_URL = "http://192.168.174.12:8081/api/v1"  // Physical device
+        const val AEGIS_API_BASE_URL = "http://192.168.161.12:8080/api"  // Physical device
+        const val BANK_API_BASE_URL = "http://192.168.161.12:8081/api/v1"  // Physical device
         
         // Secure key access - these will retrieve keys from native code
         val CLIENT_ID: String by lazy { SecureKeys.getClientId() }
