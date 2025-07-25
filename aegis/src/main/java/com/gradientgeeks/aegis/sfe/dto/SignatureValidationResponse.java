@@ -1,10 +1,14 @@
 package com.gradientgeeks.aegis.sfe.dto;
 
+import com.gradientgeeks.aegis.sfe.entity.Policy;
+
 public class SignatureValidationResponse {
     
     private boolean isValid;
     private String message;
     private String deviceId;
+    private Boolean requiresMfa;
+    private Policy.EnforcementLevel policyEnforcement;
     
     public SignatureValidationResponse() {}
     
@@ -48,12 +52,30 @@ public class SignatureValidationResponse {
         this.deviceId = deviceId;
     }
     
+    public Boolean getRequiresMfa() {
+        return requiresMfa;
+    }
+    
+    public void setRequiresMfa(Boolean requiresMfa) {
+        this.requiresMfa = requiresMfa;
+    }
+    
+    public Policy.EnforcementLevel getPolicyEnforcement() {
+        return policyEnforcement;
+    }
+    
+    public void setPolicyEnforcement(Policy.EnforcementLevel policyEnforcement) {
+        this.policyEnforcement = policyEnforcement;
+    }
+    
     @Override
     public String toString() {
         return "SignatureValidationResponse{" +
                 "isValid=" + isValid +
                 ", message='" + message + '\'' +
                 ", deviceId='" + deviceId + '\'' +
+                ", requiresMfa=" + requiresMfa +
+                ", policyEnforcement=" + policyEnforcement +
                 '}';
     }
 }

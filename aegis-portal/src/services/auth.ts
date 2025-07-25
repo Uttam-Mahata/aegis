@@ -23,6 +23,7 @@ export const authService = {
       
       localStorage.setItem('authToken', authState.token!);
       localStorage.setItem('user', JSON.stringify(authState.user));
+      localStorage.setItem('userOrganization', authState.user!.organization);
       
       return authState;
     } catch (error: any) {
@@ -38,6 +39,7 @@ export const authService = {
   logout: async (): Promise<void> => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
+    localStorage.removeItem('userOrganization');
   },
 
   getCurrentUser: (): AuthState => {

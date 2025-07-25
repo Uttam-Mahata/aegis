@@ -2,6 +2,7 @@ package com.gradientgeeks.aegis.sfe.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.util.Map;
 
 public class SignatureValidationRequest {
     
@@ -16,6 +17,11 @@ public class SignatureValidationRequest {
     @NotBlank(message = "String to sign is required")
     @Size(max = 2048, message = "String to sign must not exceed 2048 characters")
     private String stringToSign;
+    
+    // Additional context for policy evaluation
+    private String ipAddress;
+    private String userAgent;
+    private Map<String, Object> policyContext;
     
     public SignatureValidationRequest() {}
     
@@ -47,6 +53,30 @@ public class SignatureValidationRequest {
     
     public void setStringToSign(String stringToSign) {
         this.stringToSign = stringToSign;
+    }
+    
+    public String getIpAddress() {
+        return ipAddress;
+    }
+    
+    public void setIpAddress(String ipAddress) {
+        this.ipAddress = ipAddress;
+    }
+    
+    public String getUserAgent() {
+        return userAgent;
+    }
+    
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
+    }
+    
+    public Map<String, Object> getPolicyContext() {
+        return policyContext;
+    }
+    
+    public void setPolicyContext(Map<String, Object> policyContext) {
+        this.policyContext = policyContext;
     }
     
     @Override

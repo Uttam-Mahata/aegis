@@ -28,6 +28,8 @@ import {
   Logout as LogoutIcon,
   Security as SecurityIcon,
   Business as BusinessIcon,
+  Policy as PolicyIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
 import { authService } from '../services/auth';
 
@@ -63,6 +65,8 @@ const Layout: React.FC = () => {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Registration Keys', icon: <KeyIcon />, path: '/registration-keys' },
+    { text: 'Policy Management', icon: <PolicyIcon />, path: '/policies' },
+    { text: 'Policy Violations', icon: <WarningIcon />, path: '/violations' },
     ...(user?.role === 'ADMIN' ? [{ text: 'Organization Approval', icon: <BusinessIcon />, path: '/organizations' }] : []),
     { text: 'Profile', icon: <PersonIcon />, path: '/profile' },
   ];
