@@ -3,7 +3,10 @@ import {
   type RegistrationKey, 
   type RegistrationKeyRequest,
   type Policy,
-  type PolicyViolation 
+  type PolicyViolation,
+  type Device,
+  type DeviceSearchParams,
+  type FraudReport 
 } from '../types';
 
 const API_BASE_URL = 'http://localhost:8080/api/admin';
@@ -141,6 +144,77 @@ export const policyService = {
   ): Promise<PolicyViolation[]> => {
     const response = await api.get<PolicyViolation[]>(`/policies/violations/${encodeURIComponent(deviceId)}`, {
       params: { from, to }
+    });
+    return response.data;
+  },
+};
+
+export const deviceService = {
+  // Search devices
+  searchDevices: async (params: DeviceSearchParams): Promise<{devices: Device[], pagination: any}> => {
+    const response = await api.get('/devices/search', { params });
+    return response.data;
+  },
+
+  // Get device details
+  getDeviceDetails: async (deviceId: string): Promise<any> => {
+    const response = await api.get(`/devices/${encodeURIComponent(deviceId)}/fraud-status`);
+    return response.data;
+  },
+
+  // Block a device
+  blockDevice: async (deviceId: string, reason: string, blockType: string = 'TEMPORARILY_BLOCKED'): Promise<any> => {
+    const response = await api.post(`/devices/${encodeURIComponent(deviceId)}/block`, {
+      reason,
+      blockType
+    });
+    return response.data;
+  },
+
+  // Unblock a device (Admin only)
+  unblockDevice: async (deviceId: string, reason: string): Promise<any> => {
+    const response = await api.post(`/devices/${encodeURIComponent(deviceId)}/unblock`, {
+      reason
+    });
+    return response.data;
+  },
+
+  // Mark device as fraudulent
+  markDeviceAsFraudulent: async (deviceId: string, reason: string): Promise<any> => {
+    const response = await api.post(`/devices/${encodeURIComponent(deviceId)}/mark-fraudulent`, {
+      reason
+    });
+    return response.data;
+  },
+
+  // Get device transaction history
+  getDeviceHistory: async (deviceId: string, page: number = 0, size: number = 20): Promise<any> => {
+    const response = await api.get(`/devices/${encodeURIComponent(deviceId)}/history`, {
+      params: { page, size }
+    });
+    return response.data;
+  },
+
+  // Submit fraud report
+  submitFraudReport: async (fraudReport: FraudReport): Promise<any> => {
+    const response = await api.post('/fraud-report', fraudReport);
+    return response.data;
+  },
+};
+
+export const fraudService = {
+  // Get fraud statistics
+  getFraudStatistics: async (period: string = '30d'): Promise<any> => {
+    const response = await api.get('/fraud/statistics', {
+      params: { period }
+    });
+    return response.data;
+  },
+
+  // Get recent fraud reports
+  getRecentFraudReports: async (limit: number = 10): Promise<any[]> => {
+    const response = await api.get('/fraud/reports/recent', {
+      params: { limit }
     });
     return response.data;
   },

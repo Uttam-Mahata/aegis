@@ -44,6 +44,17 @@ public class User {
 
     @Column(nullable = false)
     private Boolean isActive = true;
+    
+    // Device binding fields
+    @Size(max = 255)
+    @Column(name = "bound_device_id")
+    private String boundDeviceId;
+    
+    @Column(name = "device_binding_timestamp")
+    private LocalDateTime deviceBindingTimestamp;
+    
+    @Column(name = "requires_device_rebinding")
+    private Boolean requiresDeviceRebinding = false;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)
@@ -136,5 +147,64 @@ public class User {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+    
+    public String getBoundDeviceId() {
+        return boundDeviceId;
+    }
+    
+    public void setBoundDeviceId(String boundDeviceId) {
+        this.boundDeviceId = boundDeviceId;
+    }
+    
+    public LocalDateTime getDeviceBindingTimestamp() {
+        return deviceBindingTimestamp;
+    }
+    
+    public void setDeviceBindingTimestamp(LocalDateTime deviceBindingTimestamp) {
+        this.deviceBindingTimestamp = deviceBindingTimestamp;
+    }
+    
+    public Boolean getRequiresDeviceRebinding() {
+        return requiresDeviceRebinding;
+    }
+    
+    public void setRequiresDeviceRebinding(Boolean requiresDeviceRebinding) {
+        this.requiresDeviceRebinding = requiresDeviceRebinding;
+    }
+    
+    /**
+     * Checks if the user is bound to a specific device.
+     * @return true if user has a bound device, false otherwise
+     */
+    public boolean hasDeviceBinding() {
+        return boundDeviceId != null && !boundDeviceId.trim().isEmpty();
+    }
+    
+    /**
+     * Checks if the device ID matches the user's bound device.
+     * @param deviceId The device ID to check
+     * @return true if device matches bound device, false otherwise
+     */
+    public boolean isDeviceBound(String deviceId) {
+        return hasDeviceBinding() && boundDeviceId.equals(deviceId);
+    }
+    
+    /**
+     * Binds the user to a specific device.
+     * @param deviceId The device ID to bind to
+     */
+    public void bindToDevice(String deviceId) {
+        this.boundDeviceId = deviceId;
+        this.deviceBindingTimestamp = LocalDateTime.now();
+        this.requiresDeviceRebinding = false;
+    }
+    
+    /**
+     * Marks the user as requiring device rebinding.
+     * This is used when the user needs to verify their identity on a new device.
+     */
+    public void requireDeviceRebinding() {
+        this.requiresDeviceRebinding = true;
     }
 }

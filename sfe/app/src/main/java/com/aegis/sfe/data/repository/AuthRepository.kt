@@ -111,6 +111,66 @@ class AuthRepository {
             emit(ApiResult.Error("Network error: ${e.message}"))
         }
     }.flowOn(Dispatchers.IO)
+    
+    /**
+     * Initiates device rebinding process.
+     * 
+     * @param username The username
+     * @param deviceId The new device ID to bind
+     * @param verificationMethod The verification method used
+     * @return true if rebinding was successful, false otherwise
+     */
+    suspend fun rebindDevice(username: String, deviceId: String, verificationMethod: String): Boolean {
+        return try {
+            Log.d(TAG, "Initiating device rebinding - User: $username, Device: $deviceId")
+            
+            // Create HTTP client with timeout
+            val client = OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .addInterceptor(HttpLoggingInterceptor().apply {
+                    level = HttpLoggingInterceptor.Level.BODY
+                })
+                .build()
+            
+            // Build request URL with parameters
+            val baseUrl = "http://10.0.2.2:8081" // Bank backend URL
+            val url = "$baseUrl/api/v1/auth/rebind-device?username=$username&verificationMethod=$verificationMethod"
+            
+            val request = Request.Builder()
+                .url(url)
+                .post("".toRequestBody("application/json".toMediaType()))
+                .header("Content-Type", "application/json")
+                .header("X-Device-Id", deviceId)
+                .build()
+            
+            // Execute request
+            val response = client.newCall(request).execute()
+            
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                Log.d(TAG, "Device rebinding response: $responseBody")
+                
+                // Parse response to check if successful
+                try {
+                    val responseJson = gson.fromJson(responseBody, Map::class.java)
+                    val status = responseJson["status"] as? String
+                    return status == "success"
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not parse rebinding response", e)
+                    return true // Assume success if we got 200 but couldn't parse
+                }
+            } else {
+                val errorBody = response.body?.string()
+                Log.e(TAG, "Device rebinding failed: ${response.code} - $errorBody")
+                return false
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during device rebinding", e)
+            false
+        }
+    }
 }
 
 data class LoginResponse(

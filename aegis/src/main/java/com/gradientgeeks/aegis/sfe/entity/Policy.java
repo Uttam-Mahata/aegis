@@ -72,7 +72,8 @@ public class Policy {
         DEVICE_BINDING,
         RISK_ASSESSMENT,
         API_RATE_LIMIT,
-        AUTHENTICATION_REQUIREMENT
+        AUTHENTICATION_REQUIREMENT,
+        FRAUD_REPORT
     }
     
     public enum EnforcementLevel {

@@ -38,6 +38,11 @@ public class PolicyContext {
     private Double latitude;
     private Double longitude;
     
+    // Fraud report specific information
+    private String bankTransactionId;
+    private String reasonCode;
+    private String description;
+    
     // Additional context data
     private Map<String, Object> additionalData = new HashMap<>();
     
@@ -115,6 +120,13 @@ public class PolicyContext {
             context.city = city;
             context.latitude = latitude;
             context.longitude = longitude;
+            return this;
+        }
+        
+        public Builder fraudInfo(String bankTransactionId, String reasonCode, String description) {
+            context.bankTransactionId = bankTransactionId;
+            context.reasonCode = reasonCode;
+            context.description = description;
             return this;
         }
         
@@ -215,6 +227,39 @@ public class PolicyContext {
     
     public Map<String, Object> getAdditionalData() {
         return additionalData;
+    }
+    
+    public String getBankTransactionId() {
+        return bankTransactionId;
+    }
+    
+    public String getReasonCode() {
+        return reasonCode;
+    }
+    
+    public String getDescription() {
+        return description;
+    }
+    
+    // Setters for fraud reporting
+    public void setDeviceId(String deviceId) {
+        this.deviceId = deviceId;
+    }
+    
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
+    
+    public void setBankTransactionId(String bankTransactionId) {
+        this.bankTransactionId = bankTransactionId;
+    }
+    
+    public void setReasonCode(String reasonCode) {
+        this.reasonCode = reasonCode;
+    }
+    
+    public void setDescription(String description) {
+        this.description = description;
     }
     
     @Override

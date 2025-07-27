@@ -14,6 +14,7 @@ public class PolicyEvaluationResult {
     private List<PolicyViolation> violations;
     private Policy.EnforcementLevel enforcementLevel;
     private String message;
+    private String action;
     
     private PolicyEvaluationResult(boolean passed) {
         this.passed = passed;
@@ -57,5 +58,62 @@ public class PolicyEvaluationResult {
     
     public boolean requiresMfa() {
         return !passed && enforcementLevel == Policy.EnforcementLevel.REQUIRE_MFA;
+    }
+    
+    public String getAction() {
+        return action;
+    }
+    
+    public void setAction(String action) {
+        this.action = action;
+    }
+    
+    /**
+     * Builder for PolicyEvaluationResult
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+    
+    public static class Builder {
+        private boolean passed = false;
+        private List<PolicyViolation> violations = new ArrayList<>();
+        private Policy.EnforcementLevel enforcementLevel;
+        private String message;
+        private String action;
+        
+        public Builder passed(boolean passed) {
+            this.passed = passed;
+            return this;
+        }
+        
+        public Builder violations(List<PolicyViolation> violations) {
+            this.violations = violations;
+            return this;
+        }
+        
+        public Builder enforcementLevel(Policy.EnforcementLevel enforcementLevel) {
+            this.enforcementLevel = enforcementLevel;
+            return this;
+        }
+        
+        public Builder message(String message) {
+            this.message = message;
+            return this;
+        }
+        
+        public Builder action(String action) {
+            this.action = action;
+            return this;
+        }
+        
+        public PolicyEvaluationResult build() {
+            PolicyEvaluationResult result = new PolicyEvaluationResult(passed);
+            result.violations = this.violations;
+            result.enforcementLevel = this.enforcementLevel;
+            result.message = this.message;
+            result.action = this.action;
+            return result;
+        }
     }
 }

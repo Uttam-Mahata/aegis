@@ -121,3 +121,93 @@ export interface PolicyViolation {
   userAgent?: string;
   createdAt: string;
 }
+
+// Device Management Types
+export type DeviceStatus = 'ACTIVE' | 'TEMPORARILY_BLOCKED' | 'PERMANENTLY_BLOCKED';
+
+export interface Device {
+  deviceId: string;
+  clientId: string;
+  status: DeviceStatus;
+  registrationDate: string;
+  lastActivity: string;
+  isFraudulent?: boolean;
+  fraudReportedAt?: string;
+  fraudReason?: string;
+  hardwareInfo?: {
+    manufacturer: string;
+    model: string;
+    device: string;
+  };
+  // Multi-bank support fields
+  isMultiBankDevice?: boolean;
+  baseDeviceId?: string;
+  relatedBanks?: string[];
+}
+
+export interface DeviceSearchParams {
+  deviceId?: string;
+  clientId?: string;
+  status?: DeviceStatus;
+  page?: number;
+  size?: number;
+}
+
+export interface FraudReport {
+  deviceId: string;
+  bankTransactionId: string;
+  reasonCode: string;
+  description?: string;
+}
+
+export interface DeviceHistory {
+  id: string;
+  timestamp: string;
+  eventType: string;
+  status: string;
+  details?: string;
+}
+
+export interface FraudStatistics {
+  totalDevices: number;
+  blockedDevices: number;
+  fraudulentDevices: number;
+  recentReports: number;
+  blockingTrend: {
+    period: string;
+    count: number;
+  }[];
+}
+
+export interface DeviceFingerprint {
+  version: string;
+  compositeHash: string;
+  hardware: {
+    manufacturer: string;
+    model: string;
+    device: string;
+    board: string;
+    brand: string;
+    cpuArchitecture: string;
+    apiLevel: number;
+    hash: string;
+  };
+  display: {
+    widthPixels: number;
+    heightPixels: number;
+    densityDpi: number;
+    hash: string;
+  };
+  sensors: {
+    sensorTypes: number[];
+    sensorCount: number;
+    hash: string;
+  };
+  network: {
+    networkCountryIso: string;
+    simCountryIso: string;
+    phoneType: number;
+    hash: string;
+  };
+  timestamp: number;
+}

@@ -41,8 +41,24 @@ public class SignatureValidationService {
             Optional<Device> deviceOpt = deviceRepository.findActiveByDeviceId(request.getDeviceId());
             
             if (deviceOpt.isEmpty()) {
-                logger.warn("Device not found or inactive: {}", request.getDeviceId());
-                return new SignatureValidationResponse(false, "Device not found or inactive");
+                // Check if this might be a multi-bank device ID
+                // Try to find all related device IDs for this base device
+                String baseDeviceId = request.getDeviceId().contains("_") ? 
+                    request.getDeviceId().substring(0, request.getDeviceId().lastIndexOf("_")) : 
+                    request.getDeviceId();
+                
+                java.util.List<Device> relatedDevices = deviceRepository.findAllActiveByBaseDeviceId(baseDeviceId);
+                
+                // Find the device with matching client ID from the request
+                deviceOpt = relatedDevices.stream()
+                    .filter(d -> d.getDeviceId().equals(request.getDeviceId()) || 
+                                (request.getClientId() != null && d.getClientId().equals(request.getClientId())))
+                    .findFirst();
+                
+                if (deviceOpt.isEmpty()) {
+                    logger.warn("Device not found or inactive: {}", request.getDeviceId());
+                    return new SignatureValidationResponse(false, "Device not found or inactive");
+                }
             }
             
             Device device = deviceOpt.get();

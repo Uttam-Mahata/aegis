@@ -31,10 +31,13 @@ public class TransactionService {
     
     private final TransactionRepository transactionRepository;
     private final AccountService accountService;
+    private final AegisIntegrationService aegisIntegrationService;
     
-    public TransactionService(TransactionRepository transactionRepository, AccountService accountService) {
+    public TransactionService(TransactionRepository transactionRepository, AccountService accountService,
+                            AegisIntegrationService aegisIntegrationService) {
         this.transactionRepository = transactionRepository;
         this.accountService = accountService;
+        this.aegisIntegrationService = aegisIntegrationService;
     }
     
     /**
@@ -79,6 +82,9 @@ public class TransactionService {
             
             logger.info("Transfer completed successfully: {}", transaction.getTransactionReference());
             
+            // Post-transaction fraud analysis (asynchronous)
+            performPostTransactionFraudAnalysis(transaction, deviceId, request);
+            
             return new TransferResponse(
                     transaction.getTransactionReference(),
                     transaction.getStatus().name(),
@@ -116,6 +122,131 @@ public class TransactionService {
     public Transaction getTransactionByReference(String transactionReference) {
         return transactionRepository.findByTransactionReference(transactionReference)
                 .orElseThrow(() -> new InvalidTransactionException("Transaction not found: " + transactionReference));
+    }
+    
+    /**
+     * Performs post-transaction fraud analysis.
+     * This runs after the transaction is completed to analyze patterns and report suspicious activity.
+     * 
+     * @param transaction The completed transaction
+     * @param deviceId The device that initiated the transaction
+     * @param request The original transfer request
+     */
+    private void performPostTransactionFraudAnalysis(Transaction transaction, String deviceId, TransferRequest request) {
+        try {
+            logger.debug("Performing fraud analysis for transaction: {}", transaction.getTransactionReference());
+            
+            // Calculate risk score based on various factors
+            int riskScore = calculateTransactionRiskScore(transaction, request);
+            
+            logger.debug("Risk score for transaction {}: {}", transaction.getTransactionReference(), riskScore);
+            
+            // Report to Aegis if risk score is above threshold
+            if (riskScore >= 70) {
+                String description = generateFraudDescription(transaction, request, riskScore);
+                
+                logger.warn("High-risk transaction detected - Risk Score: {}, Transaction: {}, Device: {}", 
+                    riskScore, transaction.getTransactionReference(), deviceId);
+                
+                // Report fraud asynchronously to avoid impacting transaction performance
+                boolean reported = aegisIntegrationService.reportFraudWithRiskScore(
+                    deviceId, 
+                    transaction.getTransactionReference(), 
+                    riskScore, 
+                    description
+                );
+                
+                if (reported) {
+                    logger.info("Fraud report submitted for transaction: {}", transaction.getTransactionReference());
+                } else {
+                    logger.error("Failed to submit fraud report for transaction: {}", transaction.getTransactionReference());
+                }
+            }
+            
+        } catch (Exception e) {
+            // Fraud analysis should not impact the transaction itself
+            logger.error("Error during post-transaction fraud analysis for transaction: {}", 
+                transaction.getTransactionReference(), e);
+        }
+    }
+    
+    /**
+     * Calculates a risk score for the transaction based on various factors.
+     * This is a simplified implementation - real banks would have much more sophisticated ML models.
+     * 
+     * @param transaction The transaction to analyze
+     * @param request The original request
+     * @return Risk score from 0-100 (higher is more risky)
+     */
+    private int calculateTransactionRiskScore(Transaction transaction, TransferRequest request) {
+        int riskScore = 0;
+        
+        // High amount transactions are riskier
+        if (transaction.getAmount().compareTo(new BigDecimal("50000")) > 0) {
+            riskScore += 30;
+        } else if (transaction.getAmount().compareTo(new BigDecimal("10000")) > 0) {
+            riskScore += 15;
+        }
+        
+        // Weekend/late night transactions are slightly riskier
+        LocalDateTime now = LocalDateTime.now();
+        int hour = now.getHour();
+        if (hour < 6 || hour > 22) {
+            riskScore += 10;
+        }
+        
+        // Check if it's to a new beneficiary (simplified - in reality you'd check transaction history)
+        if (isNewBeneficiary(request.getFromAccount(), request.getToAccount())) {
+            riskScore += 25;
+        }
+        
+        // International transfers (simplified check based on account format)
+        if (request.getToAccount().length() > 15) { // Assume longer account numbers are international
+            riskScore += 20;
+        }
+        
+        // Round number amounts are sometimes suspicious
+        if (transaction.getAmount().remainder(new BigDecimal("1000")).compareTo(BigDecimal.ZERO) == 0) {
+            riskScore += 5;
+        }
+        
+        return Math.min(riskScore, 100); // Cap at 100
+    }
+    
+    /**
+     * Generates a description for the fraud report.
+     */
+    private String generateFraudDescription(Transaction transaction, TransferRequest request, int riskScore) {
+        StringBuilder description = new StringBuilder();
+        description.append("High-risk transaction detected by bank ML model. ");
+        description.append("Amount: ").append(transaction.getAmount()).append(" ").append(transaction.getCurrency()).append(". ");
+        
+        if (transaction.getAmount().compareTo(new BigDecimal("50000")) > 0) {
+            description.append("Large amount transfer. ");
+        }
+        
+        if (isNewBeneficiary(request.getFromAccount(), request.getToAccount())) {
+            description.append("Transfer to new/infrequent beneficiary. ");
+        }
+        
+        LocalDateTime now = LocalDateTime.now();
+        int hour = now.getHour();
+        if (hour < 6 || hour > 22) {
+            description.append("Transaction outside normal hours. ");
+        }
+        
+        description.append("Requires review.");
+        return description.toString();
+    }
+    
+    /**
+     * Simplified check for new beneficiary.
+     * In a real implementation, this would check the customer's transaction history.
+     */
+    private boolean isNewBeneficiary(String fromAccount, String toAccount) {
+        // Simplified implementation - assume some accounts are "new" based on patterns
+        // In reality, you'd check the customer's transaction history
+        return toAccount.endsWith("999") || toAccount.endsWith("888") || toAccount.length() > 15;
     }
     
     /**

@@ -12,9 +12,16 @@ import java.util.Objects;
 @Entity
 @Table(name = "devices", indexes = {
     @Index(name = "idx_device_id", columnList = "deviceId", unique = true),
-    @Index(name = "idx_client_id", columnList = "clientId")
+    @Index(name = "idx_client_id", columnList = "clientId"),
+    @Index(name = "idx_device_status", columnList = "status")
 })
 public class Device {
+    
+    public enum DeviceStatus {
+        ACTIVE,              // Device is active and can make transactions
+        TEMPORARILY_BLOCKED, // Device is temporarily blocked (can be unblocked)
+        PERMANENTLY_BLOCKED  // Device is permanently blocked (requires admin review)
+    }
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,6 +45,10 @@ public class Device {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
     
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private DeviceStatus status = DeviceStatus.ACTIVE;
+    
     @Column(name = "last_seen")
     private LocalDateTime lastSeen;
     
@@ -55,6 +66,7 @@ public class Device {
         this.deviceId = deviceId;
         this.clientId = clientId;
         this.secretKey = secretKey;
+        this.status = DeviceStatus.ACTIVE;
     }
     
     public Long getId() {
@@ -121,6 +133,30 @@ public class Device {
         this.updatedAt = updatedAt;
     }
     
+    public DeviceStatus getStatus() {
+        return status;
+    }
+    
+    public void setStatus(DeviceStatus status) {
+        this.status = status;
+    }
+    
+    /**
+     * Checks if the device is currently blocked (temporarily or permanently).
+     * @return true if device is blocked, false otherwise
+     */
+    public boolean isBlocked() {
+        return status == DeviceStatus.TEMPORARILY_BLOCKED || status == DeviceStatus.PERMANENTLY_BLOCKED;
+    }
+    
+    /**
+     * Checks if the device can make transactions.
+     * @return true if device is active and not blocked, false otherwise
+     */
+    public boolean canMakeTransactions() {
+        return isActive && status == DeviceStatus.ACTIVE;
+    }
+    
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -141,6 +177,7 @@ public class Device {
                 ", deviceId='" + deviceId + '\'' +
                 ", clientId='" + clientId + '\'' +
                 ", isActive=" + isActive +
+                ", status=" + status +
                 ", lastSeen=" + lastSeen +
                 ", createdAt=" + createdAt +
                 ", updatedAt=" + updatedAt +

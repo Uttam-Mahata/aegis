@@ -10,6 +10,7 @@ import com.gradientgeeks.aegis.sfe_client.provisioning.ProvisioningResult
 import com.gradientgeeks.aegis.sfe_client.security.EnvironmentSecurityService
 import com.gradientgeeks.aegis.sfe_client.security.IntegrityValidationService
 import com.gradientgeeks.aegis.sfe_client.security.SecurityCheckResult
+import com.gradientgeeks.aegis.sfe_client.security.DeviceFingerprintingService
 import com.gradientgeeks.aegis.sfe_client.signing.RequestSigningService
 import com.gradientgeeks.aegis.sfe_client.signing.SignedRequestHeaders
 import com.gradientgeeks.aegis.sfe_client.storage.SecureVaultService
@@ -96,8 +97,9 @@ class AegisSfeClient private constructor(
     private val cryptographyService = CryptographyService(context)
     private val apiService = ApiClientFactory.createAegisApiService(baseUrl, enableLogging)
     private val integrityService = IntegrityValidationService(context)
+    private val fingerprintingService = DeviceFingerprintingService(context)
     private val provisioningService = DeviceProvisioningService(
-        context, apiService, cryptographyService, integrityService
+        context, apiService, cryptographyService, integrityService, fingerprintingService
     )
     private val signingService = RequestSigningService(cryptographyService, provisioningService)
     private val vaultService = SecureVaultService(context)

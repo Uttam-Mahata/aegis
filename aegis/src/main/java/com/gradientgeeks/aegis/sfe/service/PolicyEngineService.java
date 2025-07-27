@@ -345,4 +345,106 @@ public class PolicyEngineService {
     public List<PolicyViolation> getViolationHistory(String deviceId, LocalDateTime from, LocalDateTime to) {
         return violationRepository.findByDeviceIdAndCreatedAtBetween(deviceId, from, to);
     }
+    
+    /**
+     * Evaluates fraud report policies for a specific bank.
+     * This determines what action to take when a bank reports fraud on a device.
+     * 
+     * @param bankClientId The bank's client ID
+     * @param context The fraud report context
+     * @return Policy evaluation result with recommended action
+     */
+    public PolicyEvaluationResult evaluateFraudReport(String bankClientId, PolicyContext context) {
+        logger.info("Evaluating fraud report policies for bank: {} and device: {}", 
+            bankClientId, context.getDeviceId());
+        
+        try {
+            // Get fraud-specific policies for this bank
+            List<Policy> fraudPolicies = policyRepository.findActiveByClientIdAndType(bankClientId, Policy.PolicyType.FRAUD_REPORT);
+            
+            if (fraudPolicies.isEmpty()) {
+                // Default fraud handling if no custom policies are configured
+                logger.info("No custom fraud policies found for bank: {}, using default action", bankClientId);
+                return createDefaultFraudAction(context);
+            }
+            
+            // Evaluate each fraud policy
+            for (Policy policy : fraudPolicies) {
+                PolicyEvaluationResult result = evaluatePolicy(policy, context);
+                
+                // If policy matches, return the configured action
+                if (result.isPassed() || !result.getViolations().isEmpty()) {
+                    String action = determineFraudAction(policy, context);
+                    logger.info("Fraud policy matched - Bank: {}, Device: {}, Action: {}", 
+                        bankClientId, context.getDeviceId(), action);
+                    
+                    return PolicyEvaluationResult.builder()
+                        .passed(false) // Fraud reports are always violations
+                        .action(action)
+                        .message("Fraud report processed according to bank policy")
+                        .build();
+                }
+            }
+            
+            // No policies matched, use default action
+            return createDefaultFraudAction(context);
+            
+        } catch (Exception e) {
+            logger.error("Error evaluating fraud report policies for bank: {}", bankClientId, e);
+            // On error, take conservative action
+            return PolicyEvaluationResult.builder()
+                .passed(false)
+                .action("TEMPORARILY_BLOCK")
+                .message("Error in policy evaluation - default action taken")
+                .build();
+        }
+    }
+    
+    /**
+     * Creates a default fraud action when no custom policies are configured.
+     */
+    private PolicyEvaluationResult createDefaultFraudAction(PolicyContext context) {
+        String action;
+        
+        // Default logic based on reason code
+        switch (context.getReasonCode() != null ? context.getReasonCode() : "UNKNOWN") {
+            case "BANK_ML_HIGH_RISK":
+                action = "TEMPORARILY_BLOCK";
+                break;
+            case "CONFIRMED_FRAUD":
+                action = "PERMANENTLY_BLOCK";
+                break;
+            case "SUSPICIOUS_ACTIVITY":
+                action = "FLAG_FOR_REVIEW";
+                break;
+            default:
+                action = "TEMPORARILY_BLOCK";
+        }
+        
+        logger.info("Default fraud action determined - Reason: {}, Action: {}", 
+            context.getReasonCode(), action);
+        
+        return PolicyEvaluationResult.builder()
+            .passed(false)
+            .action(action)
+            .message("Default fraud handling applied")
+            .build();
+    }
+    
+    /**
+     * Determines the action to take based on the policy configuration.
+     */
+    private String determineFraudAction(Policy policy, PolicyContext context) {
+        // Look for action in policy metadata or rules
+        // This is a simplified implementation - in practice, you'd have more sophisticated
+        // action determination based on policy configuration
+        
+        if (policy.getEnforcementLevel() == Policy.EnforcementLevel.BLOCK) {
+            return "PERMANENTLY_BLOCK";
+        } else if (policy.getEnforcementLevel() == Policy.EnforcementLevel.WARN) {
+            return "FLAG_FOR_REVIEW";
+        } else {
+            return "TEMPORARILY_BLOCK";
+        }
+    }
 }

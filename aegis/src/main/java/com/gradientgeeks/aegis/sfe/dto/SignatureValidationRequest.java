@@ -23,6 +23,9 @@ public class SignatureValidationRequest {
     private String userAgent;
     private Map<String, Object> policyContext;
     
+    // Client ID for multi-bank support
+    private String clientId;
+    
     public SignatureValidationRequest() {}
     
     public SignatureValidationRequest(String deviceId, String signature, String stringToSign) {
@@ -79,12 +82,21 @@ public class SignatureValidationRequest {
         this.policyContext = policyContext;
     }
     
+    public String getClientId() {
+        return clientId;
+    }
+    
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
+    
     @Override
     public String toString() {
         return "SignatureValidationRequest{" +
                 "deviceId='" + deviceId + '\'' +
                 ", signature='[REDACTED]'" +
                 ", stringToSign='" + stringToSign + '\'' +
+                ", clientId='" + clientId + '\'' +
                 '}';
     }
 }

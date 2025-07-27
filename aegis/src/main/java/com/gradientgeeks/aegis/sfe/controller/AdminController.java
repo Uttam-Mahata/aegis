@@ -1,10 +1,18 @@
 package com.gradientgeeks.aegis.sfe.controller;
 
 import com.gradientgeeks.aegis.sfe.dto.*;
+import com.gradientgeeks.aegis.sfe.entity.Device;
+import com.gradientgeeks.aegis.sfe.entity.DeviceFingerprint;
 import com.gradientgeeks.aegis.sfe.entity.User;
 import com.gradientgeeks.aegis.sfe.service.AdminService;
+import com.gradientgeeks.aegis.sfe.service.DeviceFraudDetectionService;
+import com.gradientgeeks.aegis.sfe.service.DeviceRegistrationService;
 import com.gradientgeeks.aegis.sfe.service.RegistrationKeyService;
 import com.gradientgeeks.aegis.sfe.util.SecurityUtils;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,12 +37,18 @@ public class AdminController {
     private final RegistrationKeyService registrationKeyService;
     private final SecurityUtils securityUtils;
     private final AdminService adminService;
+    private final DeviceRegistrationService deviceRegistrationService;
+    private final DeviceFraudDetectionService deviceFraudDetectionService;
     
     @Autowired
-    public AdminController(RegistrationKeyService registrationKeyService, SecurityUtils securityUtils, AdminService adminService) {
+    public AdminController(RegistrationKeyService registrationKeyService, SecurityUtils securityUtils, 
+                          AdminService adminService, DeviceRegistrationService deviceRegistrationService,
+                          DeviceFraudDetectionService deviceFraudDetectionService) {
         this.registrationKeyService = registrationKeyService;
         this.securityUtils = securityUtils;
         this.adminService = adminService;
+        this.deviceRegistrationService = deviceRegistrationService;
+        this.deviceFraudDetectionService = deviceFraudDetectionService;
     }
     
     @PostMapping("/registration-keys")
@@ -348,4 +362,186 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         }
     }
+    
+    
+    
+    
+    /**
+     * Block a device (Admin or Bank only)
+     * This prevents the device from making any future transactions
+     * 
+     * @param deviceId The device identifier to block
+     * @param request Request containing block reason
+     * @return Success or error response
+     */
+    @PostMapping("/devices/{deviceId}/block")
+    public ResponseEntity<?> blockDevice(
+            @PathVariable String deviceId,
+            @RequestBody Map<String, String> request) {
+        
+        String organization = securityUtils.getCurrentUserOrganization();
+        if (organization == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        logger.warn("Request to block device: {} by organization: {}", deviceId, organization);
+        
+        try {
+            String reason = request.getOrDefault("reason", "Blocked due to suspicious activity");
+            String blockType = request.getOrDefault("blockType", "TEMPORARILY_BLOCKED");
+            
+            // Banks can only block devices from their own transactions
+            // Admins can block any device
+            if (!securityUtils.isAdmin()) {
+                // Verify the device has interacted with this bank
+                boolean hasInteraction = deviceRegistrationService.hasDeviceInteractedWithBank(deviceId, organization);
+                if (!hasInteraction) {
+                    logger.warn("Bank {} attempted to block device {} with no interaction history", organization, deviceId);
+                    Map<String, String> error = new HashMap<>();
+                    error.put("status", "error");
+                    error.put("message", "Cannot block device with no transaction history");
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+                }
+            }
+            
+            boolean success = deviceRegistrationService.updateDeviceStatus(deviceId, blockType, reason);
+            
+            if (success) {
+                logger.info("Device blocked successfully: {} by {}", deviceId, organization);
+                Map<String, String> response = new HashMap<>();
+                response.put("status", "success");
+                response.put("message", "Device blocked successfully");
+                response.put("deviceId", deviceId);
+                response.put("blockType", blockType);
+                return ResponseEntity.ok(response);
+            } else {
+                logger.error("Failed to block device: {}", deviceId);
+                Map<String, String> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "Failed to block device - device may not exist");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error blocking device: {}", deviceId, e);
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", "Internal server error");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+    
+    /**
+     * Unblock a device (Admin only)
+     * 
+     * @param deviceId The device identifier to unblock
+     * @param request Request containing unblock reason
+     * @return Success or error response
+     */
+    @PostMapping("/devices/{deviceId}/unblock")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> unblockDevice(
+            @PathVariable String deviceId,
+            @RequestBody Map<String, String> request) {
+        
+        logger.info("Admin unblocking device: {}", deviceId);
+        
+        try {
+            String reason = request.getOrDefault("reason", "Unblocked by admin");
+            
+            boolean success = deviceRegistrationService.updateDeviceStatus(deviceId, "ACTIVE", reason);
+            
+            if (success) {
+                logger.info("Device unblocked successfully: {}", deviceId);
+                Map<String, String> response = new HashMap<>();
+                response.put("status", "success");
+                response.put("message", "Device unblocked successfully");
+                response.put("deviceId", deviceId);
+                return ResponseEntity.ok(response);
+            } else {
+                logger.error("Failed to unblock device: {}", deviceId);
+                Map<String, String> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "Failed to unblock device - device may not exist");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error unblocking device: {}", deviceId, e);
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", "Internal server error");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+    
+    /**
+     * Report fraud for a device (Bank only)
+     * Banks use this endpoint to report suspicious devices to Aegis
+     * 
+     * @param request Fraud report containing device ID, bank transaction ID, and reason
+     * @return Success or error response
+     */
+    @PostMapping("/fraud-report")
+    public ResponseEntity<?> reportFraud(@RequestBody Map<String, String> request) {
+        
+        String organization = securityUtils.getCurrentUserOrganization();
+        if (organization == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        // Only banks can report fraud, not admins
+        if (securityUtils.isAdmin()) {
+            logger.warn("Admin user attempted to report fraud");
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", "Admin users cannot report fraud");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+        }
+        
+        String deviceId = request.get("deviceId");
+        String bankTransactionId = request.get("bankTransactionId");
+        String reasonCode = request.getOrDefault("reasonCode", "BANK_ML_HIGH_RISK");
+        String description = request.get("description");
+        
+        if (deviceId == null || bankTransactionId == null) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", "deviceId and bankTransactionId are required");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+        
+        logger.warn("Bank {} reporting fraud for device: {} (Transaction: {})", organization, deviceId, bankTransactionId);
+        
+        try {
+            // Process the fraud report according to bank's configured rules
+            boolean success = deviceRegistrationService.processFraudReport(
+                deviceId, organization, bankTransactionId, reasonCode, description
+            );
+            
+            if (success) {
+                logger.info("Fraud report processed successfully for device: {}", deviceId);
+                Map<String, String> response = new HashMap<>();
+                response.put("status", "success");
+                response.put("message", "Fraud report processed");
+                response.put("deviceId", deviceId);
+                response.put("action", "Device status updated according to bank policy");
+                return ResponseEntity.ok(response);
+            } else {
+                logger.error("Failed to process fraud report for device: {}", deviceId);
+                Map<String, String> error = new HashMap<>();
+                error.put("status", "error");
+                error.put("message", "Failed to process fraud report");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error processing fraud report for device: {}", deviceId, e);
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", "Internal server error");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+    
 }

@@ -2,6 +2,7 @@ package com.gradientgeeks.aegis.sfe.repository;
 
 import com.gradientgeeks.aegis.sfe.entity.Device;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,7 +12,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Repository
-public interface DeviceRepository extends JpaRepository<Device, Long> {
+public interface DeviceRepository extends JpaRepository<Device, Long>, JpaSpecificationExecutor<Device> {
     
     Optional<Device> findByDeviceId(String deviceId);
     
@@ -30,4 +31,25 @@ public interface DeviceRepository extends JpaRepository<Device, Long> {
     
     @Query("SELECT COUNT(d) FROM Device d WHERE d.clientId = :clientId AND d.isActive = true")
     long countActiveDevicesByClientId(@Param("clientId") String clientId);
+    
+    @Query("SELECT d FROM Device d WHERE d.clientId = :clientId")
+    java.util.List<Device> findByClientId(@Param("clientId") String clientId);
+    
+    @Query("SELECT d FROM Device d WHERE d.status = :status")
+    java.util.List<Device> findByStatus(@Param("status") Device.DeviceStatus status);
+    
+    @Query("SELECT d FROM Device d WHERE d.clientId = :clientId AND d.status = :status")
+    java.util.List<Device> findByClientIdAndStatus(@Param("clientId") String clientId, @Param("status") Device.DeviceStatus status);
+    
+    long countByClientId(String clientId);
+    
+    long countByStatusIn(java.util.List<Device.DeviceStatus> statuses);
+    
+    long countByClientIdAndStatusIn(String clientId, java.util.List<Device.DeviceStatus> statuses);
+    
+    @Query("SELECT d FROM Device d WHERE d.deviceId = :baseDeviceId OR d.deviceId LIKE CONCAT(:baseDeviceId, '_%')")
+    java.util.List<Device> findAllByBaseDeviceId(@Param("baseDeviceId") String baseDeviceId);
+    
+    @Query("SELECT d FROM Device d WHERE (d.deviceId = :deviceId OR d.deviceId LIKE CONCAT(:deviceId, '_%')) AND d.isActive = true")
+    java.util.List<Device> findAllActiveByBaseDeviceId(@Param("deviceId") String deviceId);
 }
