@@ -1,6 +1,7 @@
 package com.gradientgeeks.aegis.sfe.repository;
 
 import com.gradientgeeks.aegis.sfe.entity.Device;
+import com.gradientgeeks.aegis.sfe.entity.DeviceId;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -10,24 +11,32 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 @Repository
-public interface DeviceRepository extends JpaRepository<Device, Long>, JpaSpecificationExecutor<Device> {
+public interface DeviceRepository extends JpaRepository<Device, DeviceId>, JpaSpecificationExecutor<Device> {
     
-    Optional<Device> findByDeviceId(String deviceId);
+    Optional<Device> findByDeviceIdAndClientId(String deviceId, String clientId);
     
-    @Query("SELECT d FROM Device d WHERE d.deviceId = :deviceId AND d.isActive = true")
-    Optional<Device> findActiveByDeviceId(@Param("deviceId") String deviceId);
+    @Query("SELECT d FROM Device d WHERE d.deviceId = :deviceId AND d.clientId = :clientId AND d.isActive = true")
+    Optional<Device> findActiveByDeviceIdAndClientId(@Param("deviceId") String deviceId, @Param("clientId") String clientId);
     
-    boolean existsByDeviceId(String deviceId);
+    @Query("SELECT d FROM Device d WHERE d.deviceId = :deviceId")
+    List<Device> findAllByDeviceId(@Param("deviceId") String deviceId);
+    
+    boolean existsByDeviceIdAndClientId(String deviceId, String clientId);
     
     @Modifying
-    @Query("UPDATE Device d SET d.lastSeen = :lastSeen WHERE d.deviceId = :deviceId")
-    void updateLastSeen(@Param("deviceId") String deviceId, @Param("lastSeen") LocalDateTime lastSeen);
+    @Query("UPDATE Device d SET d.lastSeen = :lastSeen WHERE d.deviceId = :deviceId AND d.clientId = :clientId")
+    void updateLastSeen(@Param("deviceId") String deviceId, @Param("clientId") String clientId, @Param("lastSeen") LocalDateTime lastSeen);
     
     @Modifying
     @Query("UPDATE Device d SET d.isActive = false WHERE d.deviceId = :deviceId")
-    void deactivateDevice(@Param("deviceId") String deviceId);
+    void deactivateAllDevicesById(@Param("deviceId") String deviceId);
+    
+    @Modifying
+    @Query("UPDATE Device d SET d.isActive = false WHERE d.deviceId = :deviceId AND d.clientId = :clientId")
+    void deactivateDevice(@Param("deviceId") String deviceId, @Param("clientId") String clientId);
     
     @Query("SELECT COUNT(d) FROM Device d WHERE d.clientId = :clientId AND d.isActive = true")
     long countActiveDevicesByClientId(@Param("clientId") String clientId);
@@ -47,9 +56,4 @@ public interface DeviceRepository extends JpaRepository<Device, Long>, JpaSpecif
     
     long countByClientIdAndStatusIn(String clientId, java.util.List<Device.DeviceStatus> statuses);
     
-    @Query("SELECT d FROM Device d WHERE d.deviceId = :baseDeviceId OR d.deviceId LIKE CONCAT(:baseDeviceId, '_%')")
-    java.util.List<Device> findAllByBaseDeviceId(@Param("baseDeviceId") String baseDeviceId);
-    
-    @Query("SELECT d FROM Device d WHERE (d.deviceId = :deviceId OR d.deviceId LIKE CONCAT(:deviceId, '_%')) AND d.isActive = true")
-    java.util.List<Device> findAllActiveByBaseDeviceId(@Param("deviceId") String deviceId);
 }

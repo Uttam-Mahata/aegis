@@ -11,10 +11,12 @@ import java.util.Objects;
 
 @Entity
 @Table(name = "devices", indexes = {
-    @Index(name = "idx_device_id", columnList = "deviceId", unique = true),
+    @Index(name = "idx_device_id", columnList = "deviceId"),
     @Index(name = "idx_client_id", columnList = "clientId"),
-    @Index(name = "idx_device_status", columnList = "status")
+    @Index(name = "idx_device_status", columnList = "status"),
+    @Index(name = "idx_device_client_composite", columnList = "deviceId,clientId", unique = true)
 })
+@IdClass(DeviceId.class)
 public class Device {
     
     public enum DeviceStatus {
@@ -24,14 +26,12 @@ public class Device {
     }
     
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    
     @NotBlank
     @Size(max = 255)
-    @Column(name = "device_id", unique = true, nullable = false)
+    @Column(name = "device_id", nullable = false)
     private String deviceId;
     
+    @Id
     @NotBlank
     @Size(max = 100)
     @Column(name = "client_id", nullable = false)
@@ -69,13 +69,6 @@ public class Device {
         this.status = DeviceStatus.ACTIVE;
     }
     
-    public Long getId() {
-        return id;
-    }
-    
-    public void setId(Long id) {
-        this.id = id;
-    }
     
     public String getDeviceId() {
         return deviceId;
@@ -173,8 +166,7 @@ public class Device {
     @Override
     public String toString() {
         return "Device{" +
-                "id=" + id +
-                ", deviceId='" + deviceId + '\'' +
+                "deviceId='" + deviceId + '\'' +
                 ", clientId='" + clientId + '\'' +
                 ", isActive=" + isActive +
                 ", status=" + status +

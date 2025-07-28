@@ -249,15 +249,17 @@ public class FraudController {
             deviceId, securityUtils.isAdmin() ? "ADMIN" : organization);
         
         try {
-            Optional<Device> deviceOpt = deviceRegistrationService.findDeviceByDeviceId(deviceId);
-            if (deviceOpt.isEmpty()) {
+            List<Device> devices = deviceRegistrationService.findAllDevicesByDeviceId(deviceId);
+            if (devices.isEmpty()) {
                 Map<String, String> error = new HashMap<>();
                 error.put("status", "error");
                 error.put("message", "Device not found");
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
             }
             
-            Device device = deviceOpt.get();
+            // For fraud check, we just need to check if any device entry exists
+            // We'll use the first device's status as they should all have the same status
+            Device device = devices.get(0);
             
             // Check if non-admin user has access to this device
             if (!securityUtils.isAdmin()) {

@@ -38,27 +38,20 @@ public class SignatureValidationService {
         logger.info("Validating signature for deviceId: {}", request.getDeviceId());
         
         try {
-            Optional<Device> deviceOpt = deviceRepository.findActiveByDeviceId(request.getDeviceId());
+            // Validate that client ID is provided
+            if (request.getClientId() == null || request.getClientId().trim().isEmpty()) {
+                logger.warn("Client ID not provided for device: {}", request.getDeviceId());
+                return new SignatureValidationResponse(false, "Client ID is required");
+            }
+            
+            // Find the device using composite key (deviceId + clientId)
+            Optional<Device> deviceOpt = deviceRepository.findActiveByDeviceIdAndClientId(
+                request.getDeviceId(), request.getClientId());
             
             if (deviceOpt.isEmpty()) {
-                // Check if this might be a multi-bank device ID
-                // Try to find all related device IDs for this base device
-                String baseDeviceId = request.getDeviceId().contains("_") ? 
-                    request.getDeviceId().substring(0, request.getDeviceId().lastIndexOf("_")) : 
-                    request.getDeviceId();
-                
-                java.util.List<Device> relatedDevices = deviceRepository.findAllActiveByBaseDeviceId(baseDeviceId);
-                
-                // Find the device with matching client ID from the request
-                deviceOpt = relatedDevices.stream()
-                    .filter(d -> d.getDeviceId().equals(request.getDeviceId()) || 
-                                (request.getClientId() != null && d.getClientId().equals(request.getClientId())))
-                    .findFirst();
-                
-                if (deviceOpt.isEmpty()) {
-                    logger.warn("Device not found or inactive: {}", request.getDeviceId());
-                    return new SignatureValidationResponse(false, "Device not found or inactive");
-                }
+                logger.warn("Device not found or inactive - Device: {}, Client: {}", 
+                    request.getDeviceId(), request.getClientId());
+                return new SignatureValidationResponse(false, "Device not found or inactive");
             }
             
             Device device = deviceOpt.get();
@@ -107,7 +100,7 @@ public class SignatureValidationService {
                     return response;
                 }
                 
-                deviceRepository.updateLastSeen(request.getDeviceId(), LocalDateTime.now());
+                deviceRepository.updateLastSeen(request.getDeviceId(), device.getClientId(), LocalDateTime.now());
                 return new SignatureValidationResponse(true, "Signature is valid", request.getDeviceId());
             } else {
                 logger.warn("Signature validation failed for deviceId: {}", request.getDeviceId());
@@ -130,14 +123,14 @@ public class SignatureValidationService {
     }
     
     @Transactional(readOnly = true)
-    public boolean isDeviceActive(String deviceId) {
-        return deviceRepository.findActiveByDeviceId(deviceId).isPresent();
+    public boolean isDeviceActive(String deviceId, String clientId) {
+        return deviceRepository.findActiveByDeviceIdAndClientId(deviceId, clientId).isPresent();
     }
     
-    public String generateExpectedSignature(String deviceId, String stringToSign) {
-        Optional<Device> deviceOpt = deviceRepository.findActiveByDeviceId(deviceId);
+    public String generateExpectedSignature(String deviceId, String clientId, String stringToSign) {
+        Optional<Device> deviceOpt = deviceRepository.findActiveByDeviceIdAndClientId(deviceId, clientId);
         if (deviceOpt.isEmpty()) {
-            throw new IllegalArgumentException("Device not found: " + deviceId);
+            throw new IllegalArgumentException("Device not found: " + deviceId + " for client: " + clientId);
         }
         
         Device device = deviceOpt.get();

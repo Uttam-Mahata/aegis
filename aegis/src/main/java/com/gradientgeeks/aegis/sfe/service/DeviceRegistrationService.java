@@ -145,67 +145,51 @@ public class DeviceRegistrationService {
                 // Continue with registration but log for manual review
             }
             
-            // Check if device already exists (same device re-registering)
-            Optional<Device> existingDevice = deviceRepository.findByDeviceId(deviceId);
+            // Check if any device with this deviceId is blocked
+            List<Device> devicesWithSameId = deviceRepository.findAllByDeviceId(deviceId);
+            for (Device device : devicesWithSameId) {
+                if (device.getStatus() == Device.DeviceStatus.TEMPORARILY_BLOCKED || 
+                    device.getStatus() == Device.DeviceStatus.PERMANENTLY_BLOCKED) {
+                    logger.warn("Blocked device attempting to register - Device: {}, Status: {}, Bank: {}", 
+                        deviceId, device.getStatus(), request.getClientId());
+                    return DeviceRegistrationResponse.error(
+                        "Device is blocked and cannot be registered with any banking app. Status: " + device.getStatus()
+                    );
+                }
+            }
+            
+            // Check if this specific device-client combination already exists
+            Optional<Device> existingDevice = deviceRepository.findByDeviceIdAndClientId(deviceId, request.getClientId());
             Device savedDevice;
             
             if (existingDevice.isPresent()) {
-                // Device already exists - check if it's blocked before allowing re-registration
-                logger.info("Device already exists, checking status: {}", deviceId);
+                // Same device re-registering with same bank app
+                logger.info("Device re-registering with same bank app: {} for client: {}", deviceId, request.getClientId());
                 savedDevice = existingDevice.get();
                 
-                // Check if device is blocked
-                if (savedDevice.getStatus() == Device.DeviceStatus.TEMPORARILY_BLOCKED || 
-                    savedDevice.getStatus() == Device.DeviceStatus.PERMANENTLY_BLOCKED) {
-                    logger.warn("Blocked device attempting to re-register - Device: {}, Status: {}", 
+                if (savedDevice.getStatus() == Device.DeviceStatus.ACTIVE) {
+                    savedDevice.setLastSeen(LocalDateTime.now());
+                    savedDevice.setIsActive(true);
+                    // Generate new secret key for security
+                    String newSecretKey = cryptographyService.generateSecretKey();
+                    savedDevice.setSecretKey(newSecretKey);
+                    savedDevice.setUpdatedAt(LocalDateTime.now());
+                    savedDevice = deviceRepository.save(savedDevice);
+                    logger.info("Active device re-registered: {} with client: {}", deviceId, request.getClientId());
+                } else {
+                    logger.warn("Device in unexpected status attempting to re-register - Device: {}, Status: {}", 
                         deviceId, savedDevice.getStatus());
                     return DeviceRegistrationResponse.error(
-                        "Device is blocked and cannot be re-registered. Status: " + savedDevice.getStatus()
+                        "Device cannot be re-registered in current status: " + savedDevice.getStatus()
                     );
                 }
-                
-                // Check if this is the same client ID or a different bank app
-                if (savedDevice.getClientId().equals(request.getClientId())) {
-                    // Same bank app re-registering - update as before
-                    if (savedDevice.getStatus() == Device.DeviceStatus.ACTIVE) {
-                        savedDevice.setLastSeen(LocalDateTime.now());
-                        savedDevice.setIsActive(true);
-                        // Generate new secret key for security
-                        String newSecretKey = cryptographyService.generateSecretKey();
-                        savedDevice.setSecretKey(newSecretKey);
-                        savedDevice.setUpdatedAt(LocalDateTime.now());
-                        savedDevice = deviceRepository.save(savedDevice);
-                        logger.info("Active device re-registered with same bank app: {}", deviceId);
-                    } else {
-                        logger.warn("Device in unexpected status attempting to re-register - Device: {}, Status: {}", 
-                            deviceId, savedDevice.getStatus());
-                        return DeviceRegistrationResponse.error(
-                            "Device cannot be re-registered in current status: " + savedDevice.getStatus()
-                        );
-                    }
-                } else {
-                    // Different bank app on same device - this is allowed for multi-banking
-                    logger.info("Same device registering with different bank app - Device: {}, Current: {}, New: {}", 
-                        deviceId, savedDevice.getClientId(), request.getClientId());
-                    
-                    // Create a new device entry for the new bank app
-                    // This allows tracking device-bank relationships while maintaining security
-                    String secretKey = cryptographyService.generateSecretKey();
-                    Device newBankDevice = new Device(deviceId + "_" + request.getClientId(), request.getClientId(), secretKey);
-                    newBankDevice.setLastSeen(LocalDateTime.now());
-                    savedDevice = deviceRepository.save(newBankDevice);
-                    logger.info("Device registered with new bank app: {} for client: {}", deviceId, request.getClientId());
-                    
-                    // Note: We keep the original device entry for the first bank
-                    // This allows tracking cross-bank device usage for fraud detection
-                }
             } else {
-                // New device registration
+                // New registration (either new device or existing device with new bank)
                 String secretKey = cryptographyService.generateSecretKey();
                 Device device = new Device(deviceId, request.getClientId(), secretKey);
                 device.setLastSeen(LocalDateTime.now());
                 savedDevice = deviceRepository.save(device);
-                logger.info("New device registered: {}", deviceId);
+                logger.info("Device registered: {} with client: {}", deviceId, request.getClientId());
             }
             
             // Step 7: Save or update device fingerprint for future fraud detection
@@ -248,22 +232,22 @@ public class DeviceRegistrationService {
     }
     
     @Transactional(readOnly = true)
-    public boolean isDeviceRegistered(String deviceId) {
-        return deviceRepository.existsByDeviceId(deviceId);
+    public boolean isDeviceRegistered(String deviceId, String clientId) {
+        return deviceRepository.existsByDeviceIdAndClientId(deviceId, clientId);
     }
     
     @Transactional(readOnly = true)
-    public Optional<Device> getActiveDevice(String deviceId) {
-        return deviceRepository.findActiveByDeviceId(deviceId);
+    public Optional<Device> getActiveDevice(String deviceId, String clientId) {
+        return deviceRepository.findActiveByDeviceIdAndClientId(deviceId, clientId);
     }
     
-    public void updateDeviceLastSeen(String deviceId) {
-        deviceRepository.updateLastSeen(deviceId, LocalDateTime.now());
+    public void updateDeviceLastSeen(String deviceId, String clientId) {
+        deviceRepository.updateLastSeen(deviceId, clientId, LocalDateTime.now());
     }
     
-    public void deactivateDevice(String deviceId) {
-        logger.info("Deactivating device: {}", deviceId);
-        deviceRepository.deactivateDevice(deviceId);
+    public void deactivateDevice(String deviceId, String clientId) {
+        logger.info("Deactivating device: {} for client: {}", deviceId, clientId);
+        deviceRepository.deactivateDevice(deviceId, clientId);
     }
     
     /**
@@ -278,8 +262,11 @@ public class DeviceRegistrationService {
         logger.warn("Marking device as fraudulent: {} - Reason: {}", deviceId, reason);
         
         try {
-            // Deactivate the device
-            deactivateDevice(deviceId);
+            // Deactivate all devices with this deviceId across all banks
+            List<Device> devices = deviceRepository.findAllByDeviceId(deviceId);
+            for (Device device : devices) {
+                deactivateDevice(device.getDeviceId(), device.getClientId());
+            }
             
             // Mark fingerprint as fraudulent for future detection
             return fraudDetectionService.markDeviceAsFraudulent(deviceId, reason);
@@ -291,14 +278,26 @@ public class DeviceRegistrationService {
     }
     
     /**
-     * Finds a device by its device ID.
+     * Finds a device by its device ID and client ID.
      * 
      * @param deviceId The device identifier
+     * @param clientId The client identifier
      * @return Optional containing the device if found
      */
     @Transactional(readOnly = true)
-    public Optional<Device> findDeviceByDeviceId(String deviceId) {
-        return deviceRepository.findByDeviceId(deviceId);
+    public Optional<Device> findDeviceByDeviceIdAndClientId(String deviceId, String clientId) {
+        return deviceRepository.findByDeviceIdAndClientId(deviceId, clientId);
+    }
+    
+    /**
+     * Finds all devices with the same device ID across all banks.
+     * 
+     * @param deviceId The device identifier
+     * @return List of devices with the same device ID
+     */
+    @Transactional(readOnly = true)
+    public List<Device> findAllDevicesByDeviceId(String deviceId) {
+        return deviceRepository.findAllByDeviceId(deviceId);
     }
     
     /**
@@ -357,50 +356,15 @@ public class DeviceRegistrationService {
         logger.info("Updating device status: {} to {} - Reason: {}", deviceId, newStatus, reason);
         
         try {
-            // First try to find the exact device
-            Optional<Device> deviceOpt = deviceRepository.findByDeviceId(deviceId);
+            // Find all devices with this deviceId across all banks
+            List<Device> devices = deviceRepository.findAllByDeviceId(deviceId);
             
-            // If not found, check if it's a base device ID and update all related devices
-            if (deviceOpt.isEmpty()) {
-                List<Device> relatedDevices = deviceRepository.findAllByBaseDeviceId(deviceId);
-                if (relatedDevices.isEmpty()) {
-                    logger.warn("Device not found for status update: {}", deviceId);
-                    return false;
-                }
-                
-                // Update all related devices (all bank apps for this physical device)
-                Device.DeviceStatus status;
-                try {
-                    status = Device.DeviceStatus.valueOf(newStatus.toUpperCase());
-                } catch (IllegalArgumentException e) {
-                    logger.error("Invalid device status: {}", newStatus);
-                    return false;
-                }
-                
-                for (Device device : relatedDevices) {
-                    device.setStatus(status);
-                    device.setUpdatedAt(LocalDateTime.now());
-                    
-                    // If blocking, deactivate the device
-                    if (status == Device.DeviceStatus.TEMPORARILY_BLOCKED || 
-                        status == Device.DeviceStatus.PERMANENTLY_BLOCKED) {
-                        device.setIsActive(false);
-                    } else if (status == Device.DeviceStatus.ACTIVE) {
-                        device.setIsActive(true);
-                    }
-                    
-                    deviceRepository.save(device);
-                    logger.info("Related device status updated: {} -> {}", device.getDeviceId(), newStatus);
-                }
-                
-                logger.info("All related devices status updated successfully for base device: {} -> {}", deviceId, newStatus);
-                return true;
+            if (devices.isEmpty()) {
+                logger.warn("No devices found for status update: {}", deviceId);
+                return false;
             }
             
-            // Single device update
-            Device device = deviceOpt.get();
             Device.DeviceStatus status;
-            
             try {
                 status = Device.DeviceStatus.valueOf(newStatus.toUpperCase());
             } catch (IllegalArgumentException e) {
@@ -408,34 +372,26 @@ public class DeviceRegistrationService {
                 return false;
             }
             
-            device.setStatus(status);
-            device.setUpdatedAt(LocalDateTime.now());
-            
-            // If blocking, deactivate the device
-            if (status == Device.DeviceStatus.TEMPORARILY_BLOCKED || 
-                status == Device.DeviceStatus.PERMANENTLY_BLOCKED) {
-                device.setIsActive(false);
-            } else if (status == Device.DeviceStatus.ACTIVE) {
-                device.setIsActive(true);
-            }
-            
-            deviceRepository.save(device);
-            logger.info("Device status updated successfully: {} -> {}", deviceId, newStatus);
-            
-            // If this is a multi-bank device, also update the base device
-            String baseDeviceId = deviceId.contains("_") ? 
-                deviceId.substring(0, deviceId.lastIndexOf("_")) : null;
-            if (baseDeviceId != null) {
-                Optional<Device> baseDeviceOpt = deviceRepository.findByDeviceId(baseDeviceId);
-                if (baseDeviceOpt.isPresent()) {
-                    Device baseDevice = baseDeviceOpt.get();
-                    baseDevice.setStatus(status);
-                    baseDevice.setUpdatedAt(LocalDateTime.now());
-                    baseDevice.setIsActive(device.getIsActive());
-                    deviceRepository.save(baseDevice);
-                    logger.info("Base device status also updated: {} -> {}", baseDeviceId, newStatus);
+            // Update status for all devices with this deviceId (across all banks)
+            for (Device device : devices) {
+                device.setStatus(status);
+                device.setUpdatedAt(LocalDateTime.now());
+                
+                // If blocking, deactivate the device
+                if (status == Device.DeviceStatus.TEMPORARILY_BLOCKED || 
+                    status == Device.DeviceStatus.PERMANENTLY_BLOCKED) {
+                    device.setIsActive(false);
+                } else if (status == Device.DeviceStatus.ACTIVE) {
+                    device.setIsActive(true);
                 }
+                
+                deviceRepository.save(device);
+                logger.info("Device status updated for bank: {} - Device: {} -> {}", 
+                    device.getClientId(), deviceId, newStatus);
             }
+            
+            logger.info("Device status updated across all {} banks: {} -> {}", 
+                devices.size(), deviceId, newStatus);
             
             return true;
             
@@ -462,17 +418,17 @@ public class DeviceRegistrationService {
         }
         
         // Check if the device was registered with any of this organization's client IDs
-        Optional<Device> device = deviceRepository.findByDeviceId(deviceId);
-        if (device.isPresent() && organizationClientIds.contains(device.get().getClientId())) {
-            return true;
+        List<Device> devices = deviceRepository.findAllByDeviceId(deviceId);
+        for (Device device : devices) {
+            if (organizationClientIds.contains(device.getClientId())) {
+                logger.debug("Device has interaction - Device: {}, Organization: {}, ClientId: {}", 
+                    deviceId, organization, device.getClientId());
+                return true;
+            }
         }
         
-        // In a full implementation, you would also check transaction/validation history
-        // For now, we'll just check device registration
-        logger.debug("Checking device interaction - Device: {}, Organization: {}, Has interaction: {}", 
-            deviceId, organization, device.isPresent() && organizationClientIds.contains(device.get().getClientId()));
-        
-        return device.isPresent() && organizationClientIds.contains(device.get().getClientId());
+        logger.debug("Device has no interaction - Device: {}, Organization: {}", deviceId, organization);
+        return false;
     }
     
     /**

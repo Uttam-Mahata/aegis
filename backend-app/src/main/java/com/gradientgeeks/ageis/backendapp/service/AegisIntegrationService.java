@@ -65,8 +65,8 @@ public class AegisIntegrationService {
             
             logger.debug("Validating signature for device: {} with stringToSign: {}", deviceId, stringToSign);
             
-            // Create validation request
-            SignatureValidationRequest request = new SignatureValidationRequest(deviceId, signature, stringToSign);
+            // Create validation request with client ID
+            SignatureValidationRequest request = new SignatureValidationRequest(deviceId, signature, stringToSign, clientId);
             
             // Set headers
             HttpHeaders headers = new HttpHeaders();
