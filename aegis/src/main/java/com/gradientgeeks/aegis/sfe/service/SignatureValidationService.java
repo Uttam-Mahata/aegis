@@ -3,7 +3,6 @@ package com.gradientgeeks.aegis.sfe.service;
 import com.gradientgeeks.aegis.sfe.dto.SignatureValidationRequest;
 import com.gradientgeeks.aegis.sfe.dto.SignatureValidationResponse;
 import com.gradientgeeks.aegis.sfe.entity.Device;
-import com.gradientgeeks.aegis.sfe.entity.Policy;
 import com.gradientgeeks.aegis.sfe.repository.DeviceRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,16 +21,13 @@ public class SignatureValidationService {
     
     private final DeviceRepository deviceRepository;
     private final CryptographyService cryptographyService;
-    private final PolicyEngineService policyEngineService;
     
     @Autowired
     public SignatureValidationService(
             DeviceRepository deviceRepository,
-            CryptographyService cryptographyService,
-            PolicyEngineService policyEngineService) {
+            CryptographyService cryptographyService) {
         this.deviceRepository = deviceRepository;
         this.cryptographyService = cryptographyService;
-        this.policyEngineService = policyEngineService;
     }
     
     public SignatureValidationResponse validateSignature(SignatureValidationRequest request) {
@@ -85,20 +81,6 @@ public class SignatureValidationService {
             if (isValid) {
                 logger.info("Signature validation successful for deviceId: {}", request.getDeviceId());
                 
-                // Evaluate policies
-                PolicyContext policyContext = buildPolicyContext(request, device);
-                PolicyEvaluationResult policyResult = policyEngineService.evaluatePolicies(policyContext);
-                
-                if (!policyResult.isPassed()) {
-                    logger.warn("Policy validation failed for deviceId: {} - {}", 
-                        request.getDeviceId(), policyResult.getMessage());
-                    
-                    SignatureValidationResponse response = new SignatureValidationResponse(false, 
-                        "Request blocked by policy: " + policyResult.getMessage());
-                    response.setPolicyEnforcement(policyResult.getEnforcementLevel());
-                    response.setRequiresMfa(policyResult.requiresMfa());
-                    return response;
-                }
                 
                 deviceRepository.updateLastSeen(request.getDeviceId(), device.getClientId(), LocalDateTime.now());
                 return new SignatureValidationResponse(true, "Signature is valid", request.getDeviceId());
@@ -137,30 +119,4 @@ public class SignatureValidationService {
         return cryptographyService.computeHmacSha256(device.getSecretKey(), stringToSign);
     }
     
-    private PolicyContext buildPolicyContext(SignatureValidationRequest request, Device device) {
-        PolicyContext.Builder builder = PolicyContext.builder()
-            .deviceId(device.getDeviceId())
-            .clientId(device.getClientId())
-            .ipAddress(request.getIpAddress())
-            .userAgent(request.getUserAgent())
-            .requestInfo("POST", "/api/validate", LocalDateTime.now());
-        
-        // Add additional context from request if available
-        if (request.getPolicyContext() != null) {
-            request.getPolicyContext().forEach(builder::additionalData);
-        }
-        
-        // Parse string to sign for additional context
-        parseStringToSign(request.getStringToSign(), builder);
-        
-        return builder.build();
-    }
-    
-    private void parseStringToSign(String stringToSign, PolicyContext.Builder builder) {
-        // Parse METHOD|URI|TIMESTAMP|NONCE|BODY_HASH format
-        String[] parts = stringToSign.split("\\|");
-        if (parts.length >= 3) {
-            builder.requestInfo(parts[0], parts[1], LocalDateTime.now());
-        }
-    }
 }

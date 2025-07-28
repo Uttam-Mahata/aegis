@@ -525,7 +525,7 @@ public class AdminController {
                 response.put("status", "success");
                 response.put("message", "Fraud report processed");
                 response.put("deviceId", deviceId);
-                response.put("action", "Device status updated according to bank policy");
+                response.put("action", "Device status updated");
                 return ResponseEntity.ok(response);
             } else {
                 logger.error("Failed to process fraud report for device: {}", deviceId);

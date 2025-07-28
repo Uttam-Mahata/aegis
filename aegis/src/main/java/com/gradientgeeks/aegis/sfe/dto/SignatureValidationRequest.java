@@ -18,10 +18,9 @@ public class SignatureValidationRequest {
     @Size(max = 2048, message = "String to sign must not exceed 2048 characters")
     private String stringToSign;
     
-    // Additional context for policy evaluation
+    // Additional context for validation
     private String ipAddress;
     private String userAgent;
-    private Map<String, Object> policyContext;
     
     // Client ID for multi-bank support
     private String clientId;
@@ -74,13 +73,6 @@ public class SignatureValidationRequest {
         this.userAgent = userAgent;
     }
     
-    public Map<String, Object> getPolicyContext() {
-        return policyContext;
-    }
-    
-    public void setPolicyContext(Map<String, Object> policyContext) {
-        this.policyContext = policyContext;
-    }
     
     public String getClientId() {
         return clientId;

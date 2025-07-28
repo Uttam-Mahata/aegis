@@ -10,8 +10,6 @@ import RegistrationKeys from './pages/RegistrationKeys';
 import CreateKey from './pages/CreateKey';
 import Profile from './pages/Profile';
 import OrganizationApproval from './pages/OrganizationApproval';
-import PolicyManagement from './pages/PolicyManagement';
-import PolicyViolations from './pages/PolicyViolations';
 import DeviceManagement from './pages/DeviceManagement';
 import FraudDashboard from './pages/FraudDashboard';
 
@@ -65,8 +63,6 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/registration-keys" element={<RegistrationKeys />} />
               <Route path="/registration-keys/create" element={<CreateKey />} />
-              <Route path="/policies" element={<PolicyManagement />} />
-              <Route path="/violations" element={<PolicyViolations />} />
               <Route path="/device-management" element={<DeviceManagement />} />
               <Route path="/fraud-dashboard" element={<FraudDashboard />} />
               <Route path="/organizations" element={<OrganizationApproval />} />

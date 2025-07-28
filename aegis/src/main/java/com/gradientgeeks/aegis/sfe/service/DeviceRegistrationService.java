@@ -39,7 +39,6 @@ public class DeviceRegistrationService {
     private final CryptographyService cryptographyService;
     private final IntegrityValidationService integrityValidationService;
     private final DeviceFraudDetectionService fraudDetectionService;
-    private final PolicyEngineService policyEngineService;
     private final RegistrationKeyService registrationKeyService;
     
     @Autowired
@@ -50,7 +49,6 @@ public class DeviceRegistrationService {
             CryptographyService cryptographyService,
             IntegrityValidationService integrityValidationService,
             DeviceFraudDetectionService fraudDetectionService,
-            PolicyEngineService policyEngineService,
             RegistrationKeyService registrationKeyService) {
         this.deviceRepository = deviceRepository;
         this.fingerprintRepository = fingerprintRepository;
@@ -58,7 +56,6 @@ public class DeviceRegistrationService {
         this.cryptographyService = cryptographyService;
         this.integrityValidationService = integrityValidationService;
         this.fraudDetectionService = fraudDetectionService;
-        this.policyEngineService = policyEngineService;
         this.registrationKeyService = registrationKeyService;
     }
     
@@ -432,7 +429,7 @@ public class DeviceRegistrationService {
     }
     
     /**
-     * Processes a fraud report from a bank according to the bank's configured policies.
+     * Processes a fraud report from a bank.
      * 
      * @param deviceId The device identifier
      * @param bankClientId The bank's client ID
@@ -447,47 +444,17 @@ public class DeviceRegistrationService {
             deviceId, bankClientId, bankTransactionId, reasonCode);
         
         try {
-            // Get the bank's policy configuration for this type of fraud report
-            PolicyContext context = new PolicyContext();
-            context.setDeviceId(deviceId);
-            context.setClientId(bankClientId);
-            context.setBankTransactionId(bankTransactionId);
-            context.setReasonCode(reasonCode);
-            context.setDescription(description);
-            
-            // Evaluate the bank's custom rules for this fraud report
-            PolicyEvaluationResult result = policyEngineService.evaluateFraudReport(bankClientId, context);
-            
-            // Apply the action determined by the bank's policy
-            if (result.getAction() != null) {
-                switch (result.getAction().toUpperCase()) {
-                    case "TEMPORARILY_BLOCK":
-                        updateDeviceStatus(deviceId, "TEMPORARILY_BLOCKED", 
-                            "Fraud report: " + reasonCode + " - " + description);
-                        break;
-                    case "PERMANENTLY_BLOCK":
-                        updateDeviceStatus(deviceId, "PERMANENTLY_BLOCKED", 
-                            "Fraud report: " + reasonCode + " - " + description);
-                        markDeviceAsFraudulent(deviceId, "Bank fraud report: " + reasonCode);
-                        break;
-                    case "FLAG_FOR_REVIEW":
-                        // In a full implementation, this would create a review case
-                        logger.warn("Device flagged for review: {} by bank: {}", deviceId, bankClientId);
-                        break;
-                    case "IGNORE":
-                        logger.info("Fraud report ignored per bank policy: {} for device: {}", bankClientId, deviceId);
-                        break;
-                    default:
-                        logger.warn("Unknown policy action: {} for device: {}", result.getAction(), deviceId);
-                }
-            }
+            // Simple fraud report processing without policy engine
+            // Default action: temporarily block the device
+            updateDeviceStatus(deviceId, "TEMPORARILY_BLOCKED", 
+                "Fraud report: " + reasonCode + " - " + description);
             
             // In a full implementation, you would also:
             // 1. Store the fraud report for audit trails
             // 2. Check for automatic escalation rules (e.g., 3 temp blocks = permanent block)
             // 3. Send notifications to relevant parties
             
-            logger.info("Fraud report processed successfully - Action taken: {}", result.getAction());
+            logger.info("Fraud report processed successfully - Device temporarily blocked");
             return true;
             
         } catch (Exception e) {
