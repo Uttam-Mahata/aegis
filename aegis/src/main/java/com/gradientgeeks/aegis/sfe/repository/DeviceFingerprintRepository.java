@@ -36,6 +36,14 @@ public interface DeviceFingerprintRepository extends JpaRepository<DeviceFingerp
     Optional<DeviceFingerprint> findByCompositeHash(String compositeHash);
     
     /**
+     * Find fingerprint by hardware hash.
+     * 
+     * @param hardwareHash The hardware fingerprint hash
+     * @return Optional DeviceFingerprint
+     */
+    Optional<DeviceFingerprint> findByHardwareHash(String hardwareHash);
+    
+    /**
      * Find all fraudulent fingerprints.
      * 
      * @return List of fraudulent fingerprints

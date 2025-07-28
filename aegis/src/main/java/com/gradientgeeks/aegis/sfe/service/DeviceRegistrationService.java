@@ -98,13 +98,35 @@ public class DeviceRegistrationService {
                 return DeviceRegistrationResponse.error("Device fingerprint is required");
             }
             
-            // Generate persistent device ID based on fingerprint
-            // This ensures the same device gets the same ID even after app reinstall
-            String deviceId = cryptographyService.generatePersistentDeviceId(
-                request.getDeviceFingerprint().getCompositeHash(), 
-                request.getClientId()
-            );
-            logger.info("Generated persistent device ID: {} for client: {}", deviceId, request.getClientId());
+            // First check if a device with this fingerprint already exists
+            // Use hardware hash for consistent device identification across app reinstalls
+            String hardwareHash = request.getDeviceFingerprint().getHardware().getHash();
+            logger.info("Checking for existing device with hardware hash: {}", hardwareHash);
+            
+            // Look for existing device fingerprint by hardware hash
+            Optional<DeviceFingerprint> existingFingerprint = fingerprintRepository.findByHardwareHash(hardwareHash);
+            String deviceId;
+            
+            if (existingFingerprint.isPresent()) {
+                // Device fingerprint already exists - reuse the existing device ID
+                deviceId = existingFingerprint.get().getDeviceId();
+                logger.info("Found existing device with ID: {} for hardware hash: {}", deviceId, hardwareHash);
+                
+                // Update the composite hash if it changed (due to network changes etc)
+                if (!existingFingerprint.get().getCompositeHash().equals(request.getDeviceFingerprint().getCompositeHash())) {
+                    logger.info("Updating composite hash for device: {} from {} to {}", 
+                        deviceId, 
+                        existingFingerprint.get().getCompositeHash(), 
+                        request.getDeviceFingerprint().getCompositeHash());
+                    existingFingerprint.get().setCompositeHash(request.getDeviceFingerprint().getCompositeHash());
+                    existingFingerprint.get().setUpdatedAt(LocalDateTime.now());
+                    fingerprintRepository.save(existingFingerprint.get());
+                }
+            } else {
+                // No existing device found - generate new device ID from hardware hash only
+                deviceId = cryptographyService.generatePersistentDeviceIdFromHardware(hardwareHash);
+                logger.info("No existing device found, generated new device ID: {} for hardware hash: {}", deviceId, hardwareHash);
+            }
             
             // Analyze device fingerprint for fraud indicators
             logger.info("Performing fraud detection for device: {}", deviceId);
@@ -178,51 +200,17 @@ public class DeviceRegistrationService {
                     // This allows tracking cross-bank device usage for fraud detection
                 }
             } else {
-                // Check if there are any devices with old format device IDs for this fingerprint
-                // This handles the transition from old to new device ID format
-                Optional<DeviceFingerprint> existingFingerprint = fingerprintRepository
-                    .findByCompositeHash(request.getDeviceFingerprint().getCompositeHash());
-                
-                if (existingFingerprint.isPresent()) {
-                    // Found a device with the same fingerprint but different ID (old format)
-                    String oldDeviceId = existingFingerprint.get().getDeviceId();
-                    Optional<Device> oldDevice = deviceRepository.findByDeviceId(oldDeviceId);
-                    
-                    if (oldDevice.isPresent() && oldDevice.get().getClientId().equals(request.getClientId())) {
-                        // Same bank app with old device ID format - migrate to new format
-                        logger.info("Migrating device from old ID format: {} to new format: {}", oldDeviceId, deviceId);
-                        
-                        // Create new device entry with new ID format
-                        String secretKey = cryptographyService.generateSecretKey();
-                        Device device = new Device(deviceId, request.getClientId(), secretKey);
-                        device.setLastSeen(LocalDateTime.now());
-                        savedDevice = deviceRepository.save(device);
-                        
-                        // Update the fingerprint to use the new device ID
-                        existingFingerprint.get().setDeviceId(deviceId);
-                        fingerprintRepository.save(existingFingerprint.get());
-                        
-                        logger.info("Device migrated successfully from {} to {}", oldDeviceId, deviceId);
-                    } else {
-                        // Different bank or no old device found - create new entry
-                        String secretKey = cryptographyService.generateSecretKey();
-                        Device device = new Device(deviceId, request.getClientId(), secretKey);
-                        device.setLastSeen(LocalDateTime.now());
-                        savedDevice = deviceRepository.save(device);
-                        logger.info("New device registered with existing fingerprint: {}", deviceId);
-                    }
-                } else {
-                    // New device registration
-                    String secretKey = cryptographyService.generateSecretKey();
-                    Device device = new Device(deviceId, request.getClientId(), secretKey);
-                    device.setLastSeen(LocalDateTime.now());
-                    savedDevice = deviceRepository.save(device);
-                    logger.info("New device registered: {}", deviceId);
-                }
+                // New device registration
+                String secretKey = cryptographyService.generateSecretKey();
+                Device device = new Device(deviceId, request.getClientId(), secretKey);
+                device.setLastSeen(LocalDateTime.now());
+                savedDevice = deviceRepository.save(device);
+                logger.info("New device registered: {}", deviceId);
             }
             
-            // Step 7: Save device fingerprint for future fraud detection (only for new devices)
-            if (!existingDevice.isPresent()) {
+            // Step 7: Save or update device fingerprint for future fraud detection
+            // Only save if no existing fingerprint was found earlier
+            if (!existingFingerprint.isPresent()) {
                 try {
                     fraudDetectionService.saveFingerprint(savedDevice.getDeviceId(), request.getDeviceFingerprint());
                     logger.info("Device fingerprint saved successfully for device: {}", savedDevice.getDeviceId());
@@ -231,7 +219,7 @@ public class DeviceRegistrationService {
                     // Don't fail registration if fingerprint save fails, but log for investigation
                 }
             } else {
-                logger.debug("Skipping fingerprint save for existing device: {}", savedDevice.getDeviceId());
+                logger.debug("Fingerprint already exists for device: {}, skipping save", savedDevice.getDeviceId());
             }
             
             logger.info("Device registered successfully with deviceId: {} for clientId: {}", 

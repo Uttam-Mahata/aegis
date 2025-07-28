@@ -9,7 +9,7 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_aegis_sfe_security_SecureKeys_getRegistrationKey(JNIEnv *env, jobject /* this */) {
     // The registration key is stored as a C++ string
     // This makes it harder to find via simple string searches in the APK
-    std::string registrationKey = "7gaf8fgg0dj72r7nafg55je3lo5ivmrks5t45l6gnkjfd8tk7pk";
+    std::string registrationKey = "1bg95siqth92p2b64p48c2ca51ahl0eo4g3hdd9ss359amlcoj3i";
     
     LOGI("Registration key accessed");
     
@@ -19,7 +19,7 @@ Java_com_aegis_sfe_security_SecureKeys_getRegistrationKey(JNIEnv *env, jobject /
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_aegis_sfe_security_SecureKeys_getClientId(JNIEnv *env, jobject /* this */) {
     // Also store the client ID securely
-    std::string clientId = "UCOBANK_PROD_ANDROID";
+    std::string clientId = "UCO_BANK_PROD_ANDROID";
     
     LOGI("Client ID accessed");
     

@@ -122,20 +122,8 @@ public class AuthService {
             return DeviceBindingResult.allow();
         }
         
-        // Check if this is the same physical device with new device ID format
-        // This handles the transition from old device ID format (with client ID) to new format (without client ID)
-        String boundDeviceId = user.getBoundDeviceId();
-        if (isSamePhysicalDevice(boundDeviceId, deviceId)) {
-            logger.info("Same physical device detected with new device ID format - User: {}, Old ID: {}, New ID: {}", 
-                user.getUsername(), boundDeviceId, deviceId);
-            
-            // Update the user's bound device ID to the new format
-            user.bindToDevice(deviceId);
-            userRepository.save(user);
-            
-            logger.info("Device binding updated to new format - User: {}, Device: {}", user.getUsername(), deviceId);
-            return DeviceBindingResult.allow();
-        }
+        // No special handling for device ID format migration here
+        // Device consistency is now handled by Aegis using hardware fingerprint
         
         // Different device attempting login - require rebinding
         logger.warn("Login attempt from unbound device - User: {}, Bound Device: {}, Attempted Device: {}", 
@@ -149,36 +137,6 @@ public class AuthService {
             "Login detected from new device. Please complete identity verification to continue.");
     }
     
-    /**
-     * Checks if two device IDs represent the same physical device.
-     * This handles the transition from old device ID format to new format.
-     * 
-     * @param oldDeviceId The old device ID (possibly with client ID)
-     * @param newDeviceId The new device ID (generated from fingerprint only)
-     * @return true if they represent the same physical device
-     */
-    private boolean isSamePhysicalDevice(String oldDeviceId, String newDeviceId) {
-        if (oldDeviceId == null || newDeviceId == null) {
-            return false;
-        }
-        
-        // If they're exactly the same, they're definitely the same device
-        if (oldDeviceId.equals(newDeviceId)) {
-            return true;
-        }
-        
-        // Check if one is a suffix of the other (multi-bank device format)
-        // Old format: dev_abcd1234, New format might be: dev_abcd1234_UCOBANK_PROD_ANDROID
-        // Or vice versa: old format might have suffix, new format might not
-        if (oldDeviceId.startsWith(newDeviceId + "_") || newDeviceId.startsWith(oldDeviceId + "_")) {
-            return true;
-        }
-        
-        // For now, we'll assume they're different devices
-        // In a full implementation, you might query the Aegis service to check
-        // if both device IDs are associated with the same device fingerprint
-        return false;
-    }
     
     /**
      * Initiates device rebinding process for a user.

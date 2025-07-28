@@ -59,7 +59,7 @@ class DeviceFingerprintingService(private val context: Context) {
      * Collects hardware-specific characteristics that are stable across resets.
      */
     private fun collectHardwareFingerprint(): HardwareFingerprint {
-        return HardwareFingerprint(
+        val fingerprint = HardwareFingerprint(
             manufacturer = Build.MANUFACTURER,
             model = Build.MODEL,
             device = Build.DEVICE,
@@ -72,6 +72,12 @@ class DeviceFingerprintingService(private val context: Context) {
             apiLevel = Build.VERSION.SDK_INT,
             buildFingerprint = Build.FINGERPRINT
         )
+        
+        Log.d(TAG, "Hardware fingerprint collected - Manufacturer: ${fingerprint.manufacturer}, " +
+            "Model: ${fingerprint.model}, Device: ${fingerprint.device}, " +
+            "Board: ${fingerprint.board}, Hash: ${fingerprint.getHash()}")
+        
+        return fingerprint
     }
     
     /**
@@ -198,9 +204,21 @@ data class HardwareFingerprint(
     val buildFingerprint: String
 ) {
     fun getHash(): String {
-        val composite = "$manufacturer:$model:$device:$product:$board:$brand:$hardware:$cpuArchitecture:$apiLevel"
+        // Normalize values to ensure consistency across app installs
+        val normalizedComposite = listOf(
+            manufacturer.trim().lowercase(),
+            model.trim().lowercase(),
+            device.trim().lowercase(),
+            product.trim().lowercase(),
+            board.trim().lowercase(),
+            brand.trim().lowercase(),
+            hardware.trim().lowercase(),
+            cpuArchitecture.trim().lowercase(),
+            apiLevel.toString()
+        ).joinToString(":")
+        
         return MessageDigest.getInstance("SHA-256")
-            .digest(composite.toByteArray())
+            .digest(normalizedComposite.toByteArray())
             .joinToString("") { "%02x".format(it) }
     }
     

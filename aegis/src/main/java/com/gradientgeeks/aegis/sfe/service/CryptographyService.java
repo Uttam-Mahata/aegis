@@ -86,6 +86,45 @@ public class CryptographyService {
         }
     }
     
+    /**
+     * Generates a persistent device ID based only on stable hardware characteristics.
+     * This method creates a device ID using only hardware fingerprint data that
+     * remains constant across app reinstalls and network changes.
+     * 
+     * @param hardwareHash Hash of stable hardware characteristics (manufacturer, model, device, etc.)
+     * @return Deterministic device ID based on stable hardware only
+     */
+    public String generatePersistentDeviceIdFromHardware(String hardwareHash) {
+        try {
+            logger.info("Generating persistent device ID from hardware hash: {}", hardwareHash);
+            
+            // Use SHA-256 to create a deterministic hash from stable hardware characteristics
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(hardwareHash.getBytes(StandardCharsets.UTF_8));
+            
+            // Convert to hex string and truncate to reasonable length
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hashBytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            
+            // Take first 32 characters for a reasonable device ID length
+            String persistentId = "dev_" + hexString.toString().substring(0, 32);
+            
+            logger.info("Generated persistent device ID from hardware: {} (full hash: {})", 
+                persistentId, hexString.toString());
+            return persistentId;
+            
+        } catch (NoSuchAlgorithmException e) {
+            logger.error("Failed to generate persistent device ID from hardware", e);
+            throw new RuntimeException("Failed to generate persistent device ID from hardware", e);
+        }
+    }
+    
     public String computeHmacSha256(String secretKey, String data) {
         try {
             logger.debug("Computing HMAC-SHA256 with data length: {} characters", data.length());
