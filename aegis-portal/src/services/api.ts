@@ -171,7 +171,7 @@ export const deviceService = {
     return response.data;
   },
 
-  // Unblock a device (Admin only)
+  // Unblock a device (Admin or Bank - banks can only unblock devices that have used their apps)
   unblockDevice: async (deviceId: string, reason: string): Promise<any> => {
     const response = await api.post(`/devices/${encodeURIComponent(deviceId)}/unblock`, {
       reason

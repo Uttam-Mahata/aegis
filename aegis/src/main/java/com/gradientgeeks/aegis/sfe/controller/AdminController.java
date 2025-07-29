@@ -432,31 +432,52 @@ public class AdminController {
     }
     
     /**
-     * Unblock a device (Admin only)
+     * Unblock a device (Admin or Bank only)
+     * Admins can unblock any device, Banks can only unblock devices using their apps
      * 
      * @param deviceId The device identifier to unblock
      * @param request Request containing unblock reason
      * @return Success or error response
      */
     @PostMapping("/devices/{deviceId}/unblock")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> unblockDevice(
             @PathVariable String deviceId,
             @RequestBody Map<String, String> request) {
         
-        logger.info("Admin unblocking device: {}", deviceId);
+        String organization = securityUtils.getCurrentUserOrganization();
+        if (organization == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        logger.info("Request to unblock device: {} by organization: {}", deviceId, organization);
         
         try {
-            String reason = request.getOrDefault("reason", "Unblocked by admin");
+            // Banks can only unblock devices that have interacted with them
+            // Admins can unblock any device
+            if (!securityUtils.isAdmin()) {
+                // Verify the device has interacted with this bank
+                boolean hasInteraction = deviceRegistrationService.hasDeviceInteractedWithBank(deviceId, organization);
+                if (!hasInteraction) {
+                    logger.warn("Bank {} attempted to unblock device {} with no interaction history", organization, deviceId);
+                    Map<String, String> error = new HashMap<>();
+                    error.put("status", "error");
+                    error.put("message", "Cannot unblock device with no transaction history");
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+                }
+            }
+            
+            String reason = request.getOrDefault("reason", 
+                securityUtils.isAdmin() ? "Unblocked by admin" : "Unblocked by " + organization);
             
             boolean success = deviceRegistrationService.updateDeviceStatus(deviceId, "ACTIVE", reason);
             
             if (success) {
-                logger.info("Device unblocked successfully: {}", deviceId);
+                logger.info("Device unblocked successfully: {} by {}", deviceId, organization);
                 Map<String, String> response = new HashMap<>();
                 response.put("status", "success");
                 response.put("message", "Device unblocked successfully");
                 response.put("deviceId", deviceId);
+                response.put("unblockedBy", organization);
                 return ResponseEntity.ok(response);
             } else {
                 logger.error("Failed to unblock device: {}", deviceId);
