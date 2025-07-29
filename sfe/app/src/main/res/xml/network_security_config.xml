@@ -3,7 +3,7 @@
     <!-- Allow cleartext traffic for development/hackathon demo -->
     <domain-config cleartextTrafficPermitted="true">
         <!-- Your Linux machine IP -->
-        <domain includeSubdomains="true">192.168.2.12</domain>
+        <domain includeSubdomains="true">192.168.30.12</domain>
         <!-- Localhost for emulator -->
         <domain includeSubdomains="true">10.0.2.2</domain>
         <!-- Any other local IPs you might use -->

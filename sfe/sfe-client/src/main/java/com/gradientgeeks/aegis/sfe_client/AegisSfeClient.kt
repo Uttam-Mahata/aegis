@@ -37,8 +37,8 @@ import kotlinx.coroutines.withContext
  * - Device provisioning and registration
  * - HMAC request signing
  * - Secure data storage (vault)
- * - Runtime environment security checks
  * - Hardware-backed cryptographic operations
+ * - Session-based encryption with key exchange
  * 
  * Usage:
  * ```kotlin
@@ -133,13 +133,15 @@ class AegisSfeClient private constructor(
     ): ProvisioningResult {
         Log.i(TAG, "Starting device provisioning")
         
-        // Perform security check before provisioning
+        // Security check is commented out - focusing on HMAC validation and key exchange
+        /*
         val securityCheck = performSecurityCheck()
         if (!securityCheck.isSecure) {
             Log.w(TAG, "Security concerns detected during provisioning")
             Log.w(TAG, "Root: ${securityCheck.rootDetected}, Emulator: ${securityCheck.emulatorDetected}")
             // In production, you might want to fail here or prompt user
         }
+        */
         
         return provisioningService.provisionDevice(clientId, registrationKey)
     }
@@ -268,12 +270,12 @@ class AegisSfeClient private constructor(
     }
     
     /**
-     * Performs a comprehensive security check of the runtime environment.
+     * Performs a security check of the runtime environment.
      * 
-     * Checks for potential security threats including root access, emulator
-     * environment, debug mode, and other indicators of compromised security.
+     * Note: Classical security checks (root, emulator, debug mode) have been 
+     * disabled to focus on innovative solutions like HMAC validation and key exchange.
      * 
-     * @return SecurityCheckResult with detailed findings
+     * @return SecurityCheckResult with default secure status
      */
     fun performSecurityCheck(): SecurityCheckResult {
         Log.d(TAG, "Performing runtime security check")
@@ -357,9 +359,9 @@ class AegisSfeClient private constructor(
                 "HMAC-SHA256 Request Signing",
                 "AES-256 Secure Storage",
                 "Hardware-backed Keystore",
-                "Runtime Security Checks",
-                "Root Detection",
-                "Emulator Detection",
+                // "Runtime Security Checks",  // Classical checks commented out
+                // "Root Detection",           // Classical checks commented out
+                // "Emulator Detection",       // Classical checks commented out
                 "Session-based Encryption",
                 "ECDH Key Exchange",
                 "AES-256-GCM Payload Encryption"
