@@ -16,6 +16,9 @@ public class SignatureValidationRequest {
     @NotBlank(message = "String to sign is required")
     private String stringToSign;
     
+    @NotBlank(message = "Client ID is required")
+    private String clientId;
+    
     // Constructors
     public SignatureValidationRequest() {
     }
@@ -24,6 +27,13 @@ public class SignatureValidationRequest {
         this.deviceId = deviceId;
         this.signature = signature;
         this.stringToSign = stringToSign;
+    }
+    
+    public SignatureValidationRequest(String deviceId, String signature, String stringToSign, String clientId) {
+        this.deviceId = deviceId;
+        this.signature = signature;
+        this.stringToSign = stringToSign;
+        this.clientId = clientId;
     }
     
     // Getters and Setters
@@ -49,5 +59,13 @@ public class SignatureValidationRequest {
     
     public void setStringToSign(String stringToSign) {
         this.stringToSign = stringToSign;
+    }
+    
+    public String getClientId() {
+        return clientId;
+    }
+    
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
     }
 }

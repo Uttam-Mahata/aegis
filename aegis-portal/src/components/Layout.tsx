@@ -28,6 +28,8 @@ import {
   Logout as LogoutIcon,
   Security as SecurityIcon,
   Business as BusinessIcon,
+  Devices as DevicesIcon,
+  ReportProblem as FraudIcon,
 } from '@mui/icons-material';
 import { authService } from '../services/auth';
 
@@ -63,6 +65,8 @@ const Layout: React.FC = () => {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Registration Keys', icon: <KeyIcon />, path: '/registration-keys' },
+    { text: 'Device Management', icon: <DevicesIcon />, path: '/device-management' },
+    { text: 'Fraud Dashboard', icon: <FraudIcon />, path: '/fraud-dashboard' },
     ...(user?.role === 'ADMIN' ? [{ text: 'Organization Approval', icon: <BusinessIcon />, path: '/organizations' }] : []),
     { text: 'Profile', icon: <PersonIcon />, path: '/profile' },
   ];
