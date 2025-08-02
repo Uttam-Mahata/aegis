@@ -23,6 +23,7 @@ import com.aegis.sfe.ui.viewmodel.AuthViewModel
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
+    onNavigateToRebinding: (String) -> Unit = { },
     viewModel: AuthViewModel = viewModel()
 ) {
     val loginState by viewModel.loginState.collectAsState()
@@ -54,13 +55,12 @@ fun LoginScreen(
         )
     }
     
-    // Handle device rebinding state
-    rebindingState?.let { rebindState ->
-        DeviceRebindingDialog(
-            state = rebindState,
-            onRebind = { viewModel.initiateDeviceRebinding(rebindState.username) },
-            onDismiss = { viewModel.clearRebindingState() }
-        )
+    // Handle device rebinding state - navigate to rebinding screen
+    LaunchedEffect(rebindingState) {
+        rebindingState?.let { rebindState ->
+            onNavigateToRebinding(rebindState.username)
+            viewModel.clearRebindingState()
+        }
     }
     
     // Additional logging for debugging
@@ -333,81 +333,5 @@ fun DeviceBlockedDialog(
         },
         containerColor = MaterialTheme.colorScheme.surface,
         titleContentColor = MaterialTheme.colorScheme.error
-    )
-}
-
-/**
- * Dialog shown when device rebinding is required.
- */
-@Composable
-fun DeviceRebindingDialog(
-    state: com.aegis.sfe.ui.viewmodel.DeviceRebindingState,
-    onRebind: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Security,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Text(
-                    text = "Device Verification Required",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-            }
-        },
-        text = {
-            Column {
-                Text(
-                    text = state.reason,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                
-                Text(
-                    text = "To ensure your account security, we need to verify your identity on this new device.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                state.error?.let { error ->
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onRebind,
-                enabled = !state.isProcessing
-            ) {
-                if (state.isProcessing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Text(if (state.isProcessing) "Verifying..." else "Verify Device")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = !state.isProcessing
-            ) {
-                Text("Cancel")
-            }
-        }
     )
 }

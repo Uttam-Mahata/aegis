@@ -3,8 +3,10 @@ package com.gradientgeeks.ageis.backendapp.service;
 import com.gradientgeeks.ageis.backendapp.dto.LoginRequest;
 import com.gradientgeeks.ageis.backendapp.dto.LoginResponse;
 import com.gradientgeeks.ageis.backendapp.dto.UserResponse;
+import com.gradientgeeks.ageis.backendapp.entity.DeviceRebindingLog;
 import com.gradientgeeks.ageis.backendapp.entity.User;
 import com.gradientgeeks.ageis.backendapp.exception.AuthenticationException;
+import com.gradientgeeks.ageis.backendapp.repository.DeviceRebindingLogRepository;
 import com.gradientgeeks.ageis.backendapp.repository.UserRepository;
 import com.gradientgeeks.ageis.backendapp.security.JwtTokenProvider;
 import org.slf4j.Logger;
@@ -24,6 +26,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final DeviceRebindingLogRepository deviceRebindingLogRepository;
     
     @Value("${app.jwt.expiration:86400}")
     private Long jwtExpirationInSeconds;
@@ -31,10 +34,12 @@ public class AuthService {
     @Autowired
     public AuthService(UserRepository userRepository, 
                       PasswordEncoder passwordEncoder,
-                      JwtTokenProvider jwtTokenProvider) {
+                      JwtTokenProvider jwtTokenProvider,
+                      DeviceRebindingLogRepository deviceRebindingLogRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.deviceRebindingLogRepository = deviceRebindingLogRepository;
     }
     
     public LoginResponse login(LoginRequest loginRequest, String deviceId) {
@@ -151,15 +156,24 @@ public class AuthService {
         logger.info("Device rebinding requested - User: {}, New Device: {}, Method: {}", 
             username, newDeviceId, verificationMethod);
         
+        User user = null;
+        String oldDeviceId = null;
+        DeviceRebindingLog rebindingLog = null;
+        
         try {
-            User user = getUserByUsername(username);
+            user = getUserByUsername(username);
+            oldDeviceId = user.getBoundDeviceId();
             
-            // In a real implementation, you would verify the verification method here
-            // For demo purposes, we'll assume verification is successful
+            // Create rebinding log entry
+            rebindingLog = new DeviceRebindingLog(user, oldDeviceId, newDeviceId, verificationMethod, false);
             
-            String oldDeviceId = user.getBoundDeviceId();
+            // Update user's device binding
             user.bindToDevice(newDeviceId);
             userRepository.save(user);
+            
+            // Mark rebinding as successful
+            rebindingLog.setSuccess(true);
+            deviceRebindingLogRepository.save(rebindingLog);
             
             logger.info("Device rebinding successful - User: {}, Old Device: {}, New Device: {}", 
                 username, oldDeviceId, newDeviceId);
@@ -168,6 +182,17 @@ public class AuthService {
             
         } catch (Exception e) {
             logger.error("Device rebinding failed - User: {}, Device: {}", username, newDeviceId, e);
+            
+            // Log failed rebinding attempt
+            if (user != null && rebindingLog == null) {
+                rebindingLog = new DeviceRebindingLog(user, oldDeviceId, newDeviceId, verificationMethod, false);
+            }
+            if (rebindingLog != null) {
+                rebindingLog.setSuccess(false);
+                rebindingLog.setFailureReason(e.getMessage());
+                deviceRebindingLogRepository.save(rebindingLog);
+            }
+            
             return false;
         }
     }

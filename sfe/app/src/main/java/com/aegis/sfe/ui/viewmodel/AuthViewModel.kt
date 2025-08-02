@@ -125,51 +125,13 @@ class AuthViewModel : ViewModel() {
     }
     
     /**
-     * Handles device rebinding process.
+     * Handles device rebinding process - deprecated, use performDeviceRebinding instead.
      */
+    @Deprecated("Use performDeviceRebinding with proper verification details")
     fun initiateDeviceRebinding(username: String, verificationMethod: String = "MANUAL_VERIFICATION") {
-        viewModelScope.launch {
-            try {
-                _rebindingState.value = _rebindingState.value?.copy(isProcessing = true)
-                
-                val deviceId = UCOBankApplication.aegisClient.getDeviceId()
-                if (deviceId == null) {
-                    _rebindingState.value = _rebindingState.value?.copy(
-                        isProcessing = false,
-                        error = "Device not properly provisioned"
-                    )
-                    return@launch
-                }
-                
-                Log.d(TAG, "Initiating device rebinding - User: $username, Device: $deviceId")
-                
-                // Call rebinding API
-                val success = authRepository.rebindDevice(username, deviceId, verificationMethod)
-                
-                if (success) {
-                    Log.i(TAG, "Device rebinding successful")
-                    _rebindingState.value = null // Clear rebinding state
-                    
-                    // Show success message
-                    _loginState.value = _loginState.value.copy(
-                        error = null,
-                        isLoading = false
-                    )
-                } else {
-                    _rebindingState.value = _rebindingState.value?.copy(
-                        isProcessing = false,
-                        error = "Device rebinding failed. Please try again or contact support."
-                    )
-                }
-                
-            } catch (e: Exception) {
-                Log.e(TAG, "Error during device rebinding", e)
-                _rebindingState.value = _rebindingState.value?.copy(
-                    isProcessing = false,
-                    error = "An error occurred during device verification: ${e.message}"
-                )
-            }
-        }
+        // This method is kept for backward compatibility but should not be used
+        // Navigate to DeviceRebindingScreen instead
+        Log.w(TAG, "initiateDeviceRebinding is deprecated. Use DeviceRebindingScreen for proper verification.")
     }
     
     /**
@@ -184,6 +146,51 @@ class AuthViewModel : ViewModel() {
      */
     fun clearRebindingState() {
         _rebindingState.value = null
+    }
+    
+    /**
+     * Performs device rebinding with identity verification details.
+     */
+    fun performDeviceRebinding(
+        username: String,
+        aadhaarLast4: String,
+        panNumber: String,
+        securityAnswers: Map<String, String>,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val deviceId = UCOBankApplication.aegisClient.getDeviceId()
+                if (deviceId == null) {
+                    onError("Device not properly provisioned")
+                    return@launch
+                }
+                
+                Log.d(TAG, "Performing device rebinding with identity verification - User: $username, Device: $deviceId")
+                
+                // Call rebinding API with verification details
+                val success = authRepository.rebindDevice(
+                    username = username,
+                    deviceId = deviceId,
+                    aadhaarLast4 = aadhaarLast4,
+                    panNumber = panNumber,
+                    securityAnswers = securityAnswers
+                )
+                
+                if (success) {
+                    Log.i(TAG, "Device rebinding successful")
+                    _rebindingState.value = null // Clear rebinding state
+                    onSuccess()
+                } else {
+                    onError("Identity verification failed. Please check your details and try again.")
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during device rebinding", e)
+                onError("An error occurred during device verification: ${e.message}")
+            }
+        }
     }
     
     /**

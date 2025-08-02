@@ -6,6 +6,7 @@ import com.gradientgeeks.ageis.backendapp.dto.DeviceRebindRequest;
 import com.gradientgeeks.ageis.backendapp.dto.ErrorResponse;
 import com.gradientgeeks.ageis.backendapp.exception.AuthenticationException;
 import com.gradientgeeks.ageis.backendapp.service.AuthService;
+import com.gradientgeeks.ageis.backendapp.service.KYCService;
 import com.gradientgeeks.ageis.backendapp.entity.User;
 import com.gradientgeeks.ageis.backendapp.security.JwtTokenProvider;
 import jakarta.validation.Valid;
@@ -28,11 +29,13 @@ public class AuthController {
     
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final KYCService kycService;
     
     @Autowired
-    public AuthController(AuthService authService, JwtTokenProvider jwtTokenProvider) {
+    public AuthController(AuthService authService, JwtTokenProvider jwtTokenProvider, KYCService kycService) {
         this.authService = authService;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.kycService = kycService;
     }
     
     @PostMapping("/login")
@@ -108,8 +111,16 @@ public class AuthController {
             logger.info("Device rebinding request - User: {}, New Device: {}, Method: {}", 
                 request.getUsername(), newDeviceId, request.getVerificationMethod());
             
-            // Verify user identity through multiple factors
-            boolean identityVerified = verifyUserIdentity(request);
+            // Get user for verification
+            User user = authService.getUserByUsername(request.getUsername());
+            
+            // Verify user identity through KYC service
+            boolean identityVerified = kycService.verifyUserIdentity(
+                user,
+                request.getAadhaarLast4(),
+                request.getPanNumber(),
+                request.getSecurityAnswers()
+            );
             
             if (!identityVerified) {
                 logger.warn("Identity verification failed for device rebind - User: {}", request.getUsername());
@@ -131,7 +142,6 @@ public class AuthController {
                     request.getUsername(), newDeviceId);
                     
                 // Generate new login token for the new device
-                User user = authService.getUserByUsername(request.getUsername());
                 String newToken = jwtTokenProvider.generateToken(user.getUsername(), user.getId());
                 
                 Map<String, Object> response = new HashMap<>();
@@ -157,42 +167,6 @@ public class AuthController {
         }
     }
     
-    /**
-     * Verifies user identity through multiple factors.
-     * In production, this would verify against stored user data and external services.
-     */
-    private boolean verifyUserIdentity(DeviceRebindRequest request) {
-        // Implement identity verification logic
-        // This is a simplified version - in production, you would:
-        // 1. Verify Aadhaar against stored data or UIDAI API
-        // 2. Verify PAN against stored data or income tax database
-        // 3. Verify security question answers against stored answers
-        // 4. Possibly send and verify SMS/Email OTP
-        
-        // Check if all required verification data is provided
-        if (request.getAadhaarLast4() == null || request.getAadhaarLast4().length() != 4) {
-            logger.warn("Invalid Aadhaar data provided for user: {}", request.getUsername());
-            return false;
-        }
-        
-        if (request.getPanNumber() == null || !request.getPanNumber().matches("[A-Z]{5}[0-9]{4}[A-Z]")) {
-            logger.warn("Invalid PAN format provided for user: {}", request.getUsername());
-            return false;
-        }
-        
-        if (request.getSecurityAnswers() == null || request.getSecurityAnswers().isEmpty()) {
-            logger.warn("No security answers provided for user: {}", request.getUsername());
-            return false;
-        }
-        
-        // In a real implementation, you would:
-        // 1. Fetch user's stored Aadhaar/PAN from database
-        // 2. Compare provided values with stored values
-        // 3. Verify security question answers
-        // For demo purposes, we'll simulate successful verification
-        logger.info("Identity verification successful for user: {}", request.getUsername());
-        return true;
-    }
     
     /**
      * Check if a user requires device rebinding.
