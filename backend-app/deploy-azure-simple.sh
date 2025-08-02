@@ -12,6 +12,7 @@ ACR_NAME="demobackendacr"
 CONTAINER_NAME="demo-backend"
 IMAGE_NAME="demo-backend"
 TAG="latest"
+REDIS_NAME="demo-redis"
 
 echo "🚀 Starting Demo Backend deployment to Azure Southeast Asia (Cloud Build)..."
 
@@ -107,10 +108,26 @@ rm -rf "$BUILD_CONTEXT_DIR"
 
 echo "✅ Image built and pushed to ACR successfully!"
 
+# Create Redis Cache
+echo "🔴 Creating Azure Redis Cache..."
+az redis create \
+    --resource-group $RESOURCE_GROUP \
+    --name $REDIS_NAME \
+    --location $LOCATION \
+    --sku Basic \
+    --vm-size c0 \
+    --output table
+
+# Get Redis connection details
+REDIS_HOST=$(az redis show --name $REDIS_NAME --resource-group $RESOURCE_GROUP --query hostName --output tsv)
+REDIS_KEY=$(az redis list-keys --name $REDIS_NAME --resource-group $RESOURCE_GROUP --query primaryKey --output tsv)
+
+echo "🔴 Redis Host: $REDIS_HOST"
+
 # Get Aegis API URL (assuming it's already deployed)
 AEGIS_API_URL="http://aegis-backend-api.southeastasia.azurecontainer.io:8080/api"
 
-# Create Container Instance without Redis for now
+# Create Container Instance with Redis configuration
 echo "🐳 Creating Azure Container Instance..."
 az container create \
     --resource-group $RESOURCE_GROUP \
@@ -127,6 +144,10 @@ az container create \
     --location $LOCATION \
     --environment-variables \
         SPRING_PROFILES_ACTIVE=prod \
+        SPRING_DATA_REDIS_HOST=$REDIS_HOST \
+        SPRING_DATA_REDIS_PORT=6380 \
+        SPRING_DATA_REDIS_PASSWORD=$REDIS_KEY \
+        SPRING_DATA_REDIS_SSL_ENABLED=true \
         AEGIS_API_BASE_URL=$AEGIS_API_URL \
         DEMO_SERVICE_DISCOVERY_AEGIS_API_URL=$AEGIS_API_URL \
         SERVER_PORT=8081 \
@@ -147,6 +168,7 @@ echo "🌍 Region: Southeast Asia ($LOCATION)"
 echo "📦 Resource Group: $RESOURCE_GROUP"
 echo "🏗️ Container Registry: $ACR_LOGIN_SERVER"
 echo "🐳 Container Instance: $CONTAINER_NAME"
+echo "🔴 Redis Cache: $REDIS_HOST"
 echo "🌐 Application URL: http://$CONTAINER_FQDN:8081/api"
 echo "📍 Public IP: $CONTAINER_IP"
 echo "🔗 Aegis API: $AEGIS_API_URL"

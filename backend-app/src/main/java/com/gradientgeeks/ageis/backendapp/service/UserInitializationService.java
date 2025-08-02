@@ -56,6 +56,19 @@ public class UserInitializationService {
             logger.info("Created sample user: demo2");
         }
         
+        // Create admin user
+        if (!userRepository.existsByUsername("admin")) {
+            User adminUser = new User();
+            adminUser.setUsername("admin");
+            adminUser.setPasswordHash(passwordEncoder.encode("admin123"));
+            adminUser.setEmail("admin@ucobank.com");
+            adminUser.setFullName("Bank Administrator");
+            adminUser.setPhoneNumber("+919876543220");
+            adminUser.setIsActive(true);
+            userRepository.save(adminUser);
+            logger.info("Created admin user");
+        }
+        
         logger.info("Sample users initialization completed");
     }
 }

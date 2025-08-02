@@ -11,13 +11,16 @@ import com.gradientgeeks.ageis.backendapp.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -300,5 +303,30 @@ public class TransactionService {
         if (fromAccount.getBalance().compareTo(request.getAmount()) < 0) {
             throw new InvalidTransactionException("Insufficient balance");
         }
+    }
+    
+    /**
+     * Get all transactions
+     */
+    public List<Transaction> getAllTransactions() {
+        return transactionRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+    
+    /**
+     * Get recent transactions
+     */
+    public List<Transaction> getRecentTransactions(int limit) {
+        Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Transaction> page = transactionRepository.findAll(pageable);
+        return page.getContent();
+    }
+    
+    /**
+     * Get transactions by date
+     */
+    public List<Transaction> getTransactionsByDate(LocalDateTime date) {
+        LocalDateTime startOfDay = date.withHour(0).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime endOfDay = date.withHour(23).withMinute(59).withSecond(59).withNano(999999999);
+        return transactionRepository.findByCreatedAtBetween(startOfDay, endOfDay);
     }
 }
