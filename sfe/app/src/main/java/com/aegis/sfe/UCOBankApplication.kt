@@ -7,9 +7,9 @@ import com.gradientgeeks.aegis.sfe_client.AegisSfeClient
 class UCOBankApplication : Application() {
     
     companion object {
-        // Configuration constants
-        const val AEGIS_API_BASE_URL = "http://192.168.30.12:8080/api"  // Physical device
-        const val BANK_API_BASE_URL = "http://192.168.30.12:8081/api/v1"  // Physical device
+        // Configuration constants - Azure endpoints
+        const val AEGIS_API_BASE_URL = "http://aegis-backend-api.southeastasia.azurecontainer.io:8080/api"
+        const val BANK_API_BASE_URL = "http://demo-backend-api.southeastasia.azurecontainer.io:8081/api/v1"
         
         // Fraud reporting configuration
         const val AEGIS_FRAUD_ENDPOINT = "/admin/fraud-report"
