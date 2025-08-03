@@ -29,6 +29,9 @@ public class HardwareFingerprintDto {
     @Positive(message = "API level must be positive")
     private Integer apiLevel;
     
+    @NotBlank(message = "Build fingerprint is required")
+    private String buildFingerprint;
+    
     @NotBlank(message = "Hardware hash is required")
     private String hash;
     
@@ -88,6 +91,14 @@ public class HardwareFingerprintDto {
     
     public void setApiLevel(Integer apiLevel) {
         this.apiLevel = apiLevel;
+    }
+    
+    public String getBuildFingerprint() {
+        return buildFingerprint;
+    }
+    
+    public void setBuildFingerprint(String buildFingerprint) {
+        this.buildFingerprint = buildFingerprint;
     }
     
     public String getHash() {

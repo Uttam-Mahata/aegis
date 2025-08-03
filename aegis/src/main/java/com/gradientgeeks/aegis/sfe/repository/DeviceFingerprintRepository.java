@@ -184,4 +184,35 @@ public interface DeviceFingerprintRepository extends JpaRepository<DeviceFingerp
      */
     @Query("SELECT df FROM DeviceFingerprint df WHERE df.isFraudulent = :isFraudulent ORDER BY df.fraudReportedAt DESC")
     List<DeviceFingerprint> findByIsFraudulentOrderByFraudReportedAtDesc(@Param("isFraudulent") boolean isFraudulent, Pageable pageable);
+    
+    /**
+     * Find device fingerprints that have associated app fingerprints.
+     * Used for comprehensive similarity comparison including app data.
+     * 
+     * @param manufacturer Device manufacturer
+     * @param model Device model
+     * @param board Device board
+     * @return List of device fingerprints with app data
+     */
+    @Query("SELECT df FROM DeviceFingerprint df WHERE " +
+           "df.manufacturer = :manufacturer AND " +
+           "df.model = :model AND " +
+           "df.board = :board AND " +
+           "EXISTS (SELECT daf FROM DeviceAppFingerprint daf WHERE daf.fingerprintId = df.id)")
+    List<DeviceFingerprint> findWithAppFingerprintsByHardware(
+        @Param("manufacturer") String manufacturer,
+        @Param("model") String model,
+        @Param("board") String board
+    );
+    
+    /**
+     * Find device fingerprints with app data for detailed comparison.
+     * 
+     * @param hardwareHash Hash of hardware characteristics
+     * @return List of device fingerprints that have app fingerprints
+     */
+    @Query("SELECT df FROM DeviceFingerprint df WHERE " +
+           "df.hardwareHash = :hardwareHash AND " +
+           "EXISTS (SELECT daf FROM DeviceAppFingerprint daf WHERE daf.fingerprintId = df.id)")
+    List<DeviceFingerprint> findWithAppFingerprintsByHardwareHash(@Param("hardwareHash") String hardwareHash);
 }

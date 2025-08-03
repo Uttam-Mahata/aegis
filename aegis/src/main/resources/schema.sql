@@ -123,3 +123,33 @@ CREATE INDEX IF NOT EXISTS idx_fingerprint_fraudulent ON device_fingerprints(is_
 
 -- Create indexes for sensor types table
 CREATE INDEX IF NOT EXISTS idx_sensor_fingerprint_id ON device_fingerprint_sensors(fingerprint_id);
+
+-- App fingerprints table for enhanced device reinstall detection
+CREATE TABLE IF NOT EXISTS device_app_fingerprints (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    fingerprint_id BIGINT NOT NULL,
+    total_app_count INT NOT NULL,
+    user_app_count INT NOT NULL,
+    system_app_count INT NOT NULL,
+    app_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (fingerprint_id) REFERENCES device_fingerprints(id) ON DELETE CASCADE
+);
+
+-- Individual app info table for detailed app tracking
+CREATE TABLE IF NOT EXISTS device_app_info (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    app_fingerprint_id BIGINT NOT NULL,
+    package_name VARCHAR(255) NOT NULL,
+    first_install_time BIGINT NOT NULL,
+    last_update_time BIGINT NOT NULL,
+    is_system_app BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (app_fingerprint_id) REFERENCES device_app_fingerprints(id) ON DELETE CASCADE
+);
+
+-- Create indexes for app fingerprints
+CREATE INDEX IF NOT EXISTS idx_app_fingerprint_id ON device_app_fingerprints(fingerprint_id);
+CREATE INDEX IF NOT EXISTS idx_app_fingerprint_hash ON device_app_fingerprints(app_hash);
+CREATE INDEX IF NOT EXISTS idx_app_info_fingerprint_id ON device_app_info(app_fingerprint_id);
+CREATE INDEX IF NOT EXISTS idx_app_info_package_name ON device_app_info(package_name);

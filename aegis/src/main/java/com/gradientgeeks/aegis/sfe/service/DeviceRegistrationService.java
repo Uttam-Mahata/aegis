@@ -2,6 +2,7 @@ package com.gradientgeeks.aegis.sfe.service;
 
 import com.gradientgeeks.aegis.sfe.dto.DeviceRegistrationRequest;
 import com.gradientgeeks.aegis.sfe.dto.DeviceRegistrationResponse;
+import com.gradientgeeks.aegis.sfe.dto.HardwareFingerprintDto;
 import com.gradientgeeks.aegis.sfe.entity.Device;
 import com.gradientgeeks.aegis.sfe.entity.DeviceFingerprint;
 import com.gradientgeeks.aegis.sfe.entity.RegistrationKey;
@@ -99,6 +100,15 @@ public class DeviceRegistrationService {
             // Use hardware hash for consistent device identification across app reinstalls
             String hardwareHash = request.getDeviceFingerprint().getHardware().getHash();
             logger.info("Checking for existing device with hardware hash: {}", hardwareHash);
+            
+            // Log detailed hardware fingerprint information for device identification debugging
+            HardwareFingerprintDto hardware = request.getDeviceFingerprint().getHardware();
+            logger.info("Device hardware details - Manufacturer: {}, Model: {}, Device: {}, Board: {}, Build Fingerprint: {}", 
+                hardware.getManufacturer(), 
+                hardware.getModel(), 
+                hardware.getDevice(), 
+                hardware.getBoard(),
+                hardware.getBuildFingerprint());
             
             // Look for existing device fingerprint by hardware hash
             Optional<DeviceFingerprint> existingFingerprint = fingerprintRepository.findByHardwareHash(hardwareHash);

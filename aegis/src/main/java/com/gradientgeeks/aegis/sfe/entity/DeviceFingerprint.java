@@ -157,6 +157,10 @@ public class DeviceFingerprint {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
     
+    // App fingerprint relationship
+    @OneToOne(mappedBy = "deviceFingerprint", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private DeviceAppFingerprint appFingerprint;
+    
     public DeviceFingerprint() {}
     
     // Getters and Setters
@@ -390,6 +394,23 @@ public class DeviceFingerprint {
     
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+    
+    public DeviceAppFingerprint getAppFingerprint() {
+        return appFingerprint;
+    }
+    
+    public void setAppFingerprint(DeviceAppFingerprint appFingerprint) {
+        this.appFingerprint = appFingerprint;
+    }
+    
+    /**
+     * Check if this device fingerprint has associated app data.
+     * 
+     * @return true if app fingerprint data is available
+     */
+    public boolean hasAppFingerprint() {
+        return appFingerprint != null;
     }
     
     /**

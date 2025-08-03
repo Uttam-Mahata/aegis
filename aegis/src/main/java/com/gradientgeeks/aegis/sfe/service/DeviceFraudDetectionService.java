@@ -5,8 +5,14 @@ import com.gradientgeeks.aegis.sfe.dto.HardwareFingerprintDto;
 import com.gradientgeeks.aegis.sfe.dto.DisplayFingerprintDto;
 import com.gradientgeeks.aegis.sfe.dto.SensorFingerprintDto;
 import com.gradientgeeks.aegis.sfe.dto.NetworkFingerprintDto;
+import com.gradientgeeks.aegis.sfe.dto.AppFingerprintDto;
+import com.gradientgeeks.aegis.sfe.dto.AppInfoDto;
 import com.gradientgeeks.aegis.sfe.entity.DeviceFingerprint;
+import com.gradientgeeks.aegis.sfe.entity.DeviceAppFingerprint;
+import com.gradientgeeks.aegis.sfe.entity.DeviceAppInfo;
 import com.gradientgeeks.aegis.sfe.repository.DeviceFingerprintRepository;
+import com.gradientgeeks.aegis.sfe.repository.DeviceAppFingerprintRepository;
+import com.gradientgeeks.aegis.sfe.repository.DeviceAppInfoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +28,8 @@ import java.util.Optional;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.stream.Collectors;
 
 /**
@@ -41,10 +49,16 @@ public class DeviceFraudDetectionService {
     private static final double LOW_SIMILARITY_THRESHOLD = 0.5;
     
     private final DeviceFingerprintRepository fingerprintRepository;
+    private final DeviceAppFingerprintRepository appFingerprintRepository;
+    private final DeviceAppInfoRepository appInfoRepository;
     
     @Autowired
-    public DeviceFraudDetectionService(DeviceFingerprintRepository fingerprintRepository) {
+    public DeviceFraudDetectionService(DeviceFingerprintRepository fingerprintRepository,
+                                     DeviceAppFingerprintRepository appFingerprintRepository,
+                                     DeviceAppInfoRepository appInfoRepository) {
         this.fingerprintRepository = fingerprintRepository;
+        this.appFingerprintRepository = appFingerprintRepository;
+        this.appInfoRepository = appInfoRepository;
     }
     
     /**
@@ -224,7 +238,20 @@ public class DeviceFraudDetectionService {
             )
         );
         
-        return fingerprintRepository.save(fingerprint);
+        DeviceFingerprint savedFingerprint = fingerprintRepository.save(fingerprint);
+        
+        // Save app fingerprint data if available
+        if (fingerprintDto.getApps() != null) {
+            try {
+                saveAppFingerprint(savedFingerprint.getId(), fingerprintDto.getApps());
+                logger.info("App fingerprint data saved for device: {}", deviceId);
+            } catch (Exception e) {
+                logger.error("Failed to save app fingerprint data for device: {}", deviceId, e);
+                // Don't fail the entire operation if app data save fails
+            }
+        }
+        
+        return savedFingerprint;
     }
     
     /**
@@ -287,8 +314,17 @@ public class DeviceFraudDetectionService {
         // Display similarity
         double displaySimilarity = calculateDisplaySimilarity(incoming, existing);
         
-        // Weighted average: hardware is most critical for fraud detection
-        return (hardwareSimilarity * 0.7) + (displaySimilarity * 0.3);
+        // App similarity (for device reinstall detection)
+        double appSimilarity = calculateAppSimilarity(incoming, existing);
+        
+        // Weighted average: hardware is most critical, app data helps with reinstall detection
+        if (appSimilarity >= 0.0) {
+            // When app data is available, include it in similarity calculation
+            return (hardwareSimilarity * 0.5) + (displaySimilarity * 0.25) + (appSimilarity * 0.25);
+        } else {
+            // Original calculation when no app data
+            return (hardwareSimilarity * 0.7) + (displaySimilarity * 0.3);
+        }
     }
     
     /**
@@ -327,6 +363,170 @@ public class DeviceFraudDetectionService {
         return incoming.getDisplay().getWidthPixels().equals(existing.getWidthPixels()) &&
                incoming.getDisplay().getHeightPixels().equals(existing.getHeightPixels()) &&
                incoming.getDisplay().getDensityDpi().equals(existing.getDensityDpi()) ? 1.0 : 0.0;
+    }
+    
+    /**
+     * Calculates app similarity score for device reinstall detection.
+     * Returns -1.0 if app data is not available, otherwise returns similarity score (0.0 to 1.0).
+     */
+    private double calculateAppSimilarity(DeviceFingerprintDto incoming, DeviceFingerprint existing) {
+        AppFingerprintDto incomingApps = incoming.getApps();
+        if (incomingApps == null) {
+            return -1.0; // No app data available
+        }
+        
+        // Find existing app fingerprint for the device
+        Optional<DeviceAppFingerprint> existingAppFingerprint = appFingerprintRepository.findByFingerprintId(existing.getId());
+        if (!existingAppFingerprint.isPresent()) {
+            logger.debug("No existing app fingerprint found for device fingerprint ID: {}", existing.getId());
+            return -1.0; // No existing app data to compare
+        }
+        
+        DeviceAppFingerprint existingApps = existingAppFingerprint.get();
+        logger.debug("Comparing app fingerprints - Incoming: Total={}, User={}, System={} | Existing: Total={}, User={}, System={}", 
+            incomingApps.getTotalAppCount(), incomingApps.getUserAppCount(), incomingApps.getSystemAppCount(),
+            existingApps.getTotalAppCount(), existingApps.getUserAppCount(), existingApps.getSystemAppCount());
+        
+        // Calculate basic count-based similarity
+        double countSimilarity = calculateAppCountSimilarity(incomingApps, existingApps);
+        
+        // Calculate package name overlap similarity
+        double packageSimilarity = calculatePackageNameSimilarity(incomingApps, existingApps.getId());
+        
+        // Weighted combination: package similarity is more important than counts
+        double finalSimilarity = (countSimilarity * 0.3) + (packageSimilarity * 0.7);
+        
+        logger.debug("App similarity calculation - Count: {}, Package: {}, Final: {}", 
+            countSimilarity, packageSimilarity, finalSimilarity);
+        
+        return finalSimilarity;
+    }
+    
+    /**
+     * Calculates similarity based on app counts.
+     */
+    private double calculateAppCountSimilarity(AppFingerprintDto incoming, DeviceAppFingerprint existing) {
+        // Total app count similarity
+        double totalCountSimilarity = 1.0 - ((double) Math.abs(incoming.getTotalAppCount() - existing.getTotalAppCount()) / 
+                                            (double) Math.max(incoming.getTotalAppCount(), existing.getTotalAppCount()));
+        
+        // User app count similarity
+        double userCountSimilarity = 1.0 - ((double) Math.abs(incoming.getUserAppCount() - existing.getUserAppCount()) / 
+                                           (double) Math.max(incoming.getUserAppCount(), existing.getUserAppCount()));
+        
+        // System app count similarity
+        double systemCountSimilarity = 1.0 - ((double) Math.abs(incoming.getSystemAppCount() - existing.getSystemAppCount()) / 
+                                             (double) Math.max(incoming.getSystemAppCount(), existing.getSystemAppCount()));
+        
+        // Weighted average: user apps are more distinctive than system apps
+        return (totalCountSimilarity * 0.4) + (userCountSimilarity * 0.4) + (systemCountSimilarity * 0.2);
+    }
+    
+    /**
+     * Calculates similarity based on package name overlap.
+     */
+    private double calculatePackageNameSimilarity(AppFingerprintDto incoming, Long existingAppFingerprintId) {
+        try {
+            // Get existing package names
+            Set<String> existingUserApps = appInfoRepository.findUserAppPackageNamesByFingerprintId(existingAppFingerprintId);
+            Set<String> existingSystemApps = appInfoRepository.findSystemAppPackageNamesByFingerprintId(existingAppFingerprintId);
+            
+            // Get incoming package names
+            Set<String> incomingUserApps = incoming.getUserApps().stream()
+                .map(AppInfoDto::getPackageName)
+                .collect(Collectors.toSet());
+            Set<String> incomingSystemApps = incoming.getSystemApps().stream()
+                .map(AppInfoDto::getPackageName)
+                .collect(Collectors.toSet());
+            
+            // Calculate user app similarity (more important for device identification)
+            double userAppSimilarity = calculateSetSimilarity(incomingUserApps, existingUserApps);
+            
+            // Calculate system app similarity
+            double systemAppSimilarity = calculateSetSimilarity(incomingSystemApps, existingSystemApps);
+            
+            // Weighted combination: user apps are more distinctive
+            double packageSimilarity = (userAppSimilarity * 0.7) + (systemAppSimilarity * 0.3);
+            
+            logger.debug("Package similarity - User apps: {} common out of {} total, System apps: {} common out of {} total", 
+                incomingUserApps.stream().filter(existingUserApps::contains).count(), 
+                incomingUserApps.size() + existingUserApps.size(),
+                incomingSystemApps.stream().filter(existingSystemApps::contains).count(),
+                incomingSystemApps.size() + existingSystemApps.size());
+            
+            return packageSimilarity;
+            
+        } catch (Exception e) {
+            logger.error("Error calculating package name similarity", e);
+            return 0.0;
+        }
+    }
+    
+    /**
+     * Calculates Jaccard similarity between two sets.
+     */
+    private double calculateSetSimilarity(Set<String> set1, Set<String> set2) {
+        if (set1.isEmpty() && set2.isEmpty()) {
+            return 1.0; // Both empty, perfect match
+        }
+        
+        Set<String> intersection = new HashSet<>(set1);
+        intersection.retainAll(set2);
+        
+        Set<String> union = new HashSet<>(set1);
+        union.addAll(set2);
+        
+        return union.isEmpty() ? 0.0 : (double) intersection.size() / union.size();
+    }
+    
+    /**
+     * Saves app fingerprint data to database.
+     */
+    @Transactional
+    private void saveAppFingerprint(Long deviceFingerprintId, AppFingerprintDto appFingerprintDto) {
+        logger.debug("Saving app fingerprint for device fingerprint ID: {}", deviceFingerprintId);
+        
+        // Create app fingerprint entity
+        DeviceAppFingerprint appFingerprint = new DeviceAppFingerprint(
+            deviceFingerprintId,
+            appFingerprintDto.getTotalAppCount(),
+            appFingerprintDto.getUserAppCount(),
+            appFingerprintDto.getSystemAppCount(),
+            appFingerprintDto.getHash()
+        );
+        
+        DeviceAppFingerprint savedAppFingerprint = appFingerprintRepository.save(appFingerprint);
+        
+        // Save individual app info
+        List<DeviceAppInfo> appInfoList = new ArrayList<>();
+        
+        // Save user apps
+        for (AppInfoDto userApp : appFingerprintDto.getUserApps()) {
+            appInfoList.add(new DeviceAppInfo(
+                savedAppFingerprint.getId(),
+                userApp.getPackageName(),
+                userApp.getFirstInstallTime(),
+                userApp.getLastUpdateTime(),
+                false // user app
+            ));
+        }
+        
+        // Save system apps
+        for (AppInfoDto systemApp : appFingerprintDto.getSystemApps()) {
+            appInfoList.add(new DeviceAppInfo(
+                savedAppFingerprint.getId(),
+                systemApp.getPackageName(),
+                systemApp.getFirstInstallTime(),
+                systemApp.getLastUpdateTime(),
+                true // system app
+            ));
+        }
+        
+        // Batch save app info
+        appInfoRepository.saveAll(appInfoList);
+        
+        logger.debug("Saved {} user apps and {} system apps for device fingerprint ID: {}", 
+            appFingerprintDto.getUserAppCount(), appFingerprintDto.getSystemAppCount(), deviceFingerprintId);
     }
     
     /**
