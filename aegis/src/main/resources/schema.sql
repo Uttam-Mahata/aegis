@@ -60,20 +60,66 @@ CREATE INDEX idx_devices_client_id ON devices(client_id);
 CREATE INDEX idx_devices_status ON devices(status);
 
 
+-- Drop the old table if it exists to recreate with new structure
+DROP TABLE IF EXISTS device_fingerprint_sensors;
+DROP TABLE IF EXISTS device_fingerprints;
+
 -- Device Fingerprints table for fraud detection
-CREATE TABLE IF NOT EXISTS device_fingerprints (
+CREATE TABLE device_fingerprints (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     device_id VARCHAR(255) NOT NULL,
-    hardware_hash VARCHAR(512) NOT NULL,
-    composite_hash VARCHAR(512) NOT NULL,
+    version VARCHAR(50) NOT NULL,
+    composite_hash VARCHAR(64) NOT NULL,
+    
+    -- Hardware characteristics
+    manufacturer VARCHAR(100) NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    device_name VARCHAR(100) NOT NULL,
+    board VARCHAR(100) NOT NULL,
+    brand VARCHAR(100) NOT NULL,
+    cpu_architecture VARCHAR(200) NOT NULL,
+    api_level INT NOT NULL,
+    hardware_hash VARCHAR(64) NOT NULL,
+    
+    -- Display characteristics
+    width_pixels INT NOT NULL,
+    height_pixels INT NOT NULL,
+    density_dpi INT NOT NULL,
+    display_hash VARCHAR(64) NOT NULL,
+    
+    -- Sensor information
+    sensor_count INT NOT NULL,
+    sensor_hash VARCHAR(64) NOT NULL,
+    
+    -- Network characteristics
+    network_country_iso VARCHAR(100),
+    sim_country_iso VARCHAR(100),
+    phone_type INT,
+    network_hash VARCHAR(64) NOT NULL,
+    
+    -- Fraud detection
     is_fraudulent BOOLEAN DEFAULT false,
-    fraud_reason VARCHAR(512),
+    fraud_reported_at TIMESTAMP NULL,
+    fraud_reason VARCHAR(500),
+    fingerprint_timestamp TIMESTAMP NOT NULL,
+    
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Create sensor types table for the @ElementCollection
+CREATE TABLE device_fingerprint_sensors (
+    fingerprint_id BIGINT NOT NULL,
+    sensor_type INT NOT NULL,
+    FOREIGN KEY (fingerprint_id) REFERENCES device_fingerprints(id) ON DELETE CASCADE
 );
 
 -- Create indexes for device_fingerprints
 CREATE INDEX IF NOT EXISTS idx_fingerprint_device_id ON device_fingerprints(device_id);
 CREATE INDEX IF NOT EXISTS idx_fingerprint_hardware_hash ON device_fingerprints(hardware_hash);
 CREATE INDEX IF NOT EXISTS idx_fingerprint_composite_hash ON device_fingerprints(composite_hash);
+CREATE INDEX IF NOT EXISTS idx_fingerprint_display_hash ON device_fingerprints(display_hash);
 CREATE INDEX IF NOT EXISTS idx_fingerprint_fraudulent ON device_fingerprints(is_fraudulent);
+
+-- Create indexes for sensor types table
+CREATE INDEX IF NOT EXISTS idx_sensor_fingerprint_id ON device_fingerprint_sensors(fingerprint_id);
