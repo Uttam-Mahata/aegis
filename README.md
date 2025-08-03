@@ -1,4 +1,4 @@
-## **Aegis Security: End-to-End Workflow Example**
+## **Aegis Security
 
 Author: Gradient Geeks  
 Date: July 19, 2025  
