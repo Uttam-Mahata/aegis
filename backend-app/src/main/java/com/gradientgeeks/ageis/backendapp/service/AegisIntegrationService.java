@@ -15,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.Map;
 
 /**
  * Service for integrating with the Aegis Security API.
@@ -59,14 +60,36 @@ public class AegisIntegrationService {
                                                        String method, String uri, 
                                                        String timestamp, String nonce,
                                                        String bodyHash) {
+        return validateSignatureWithMetadata(deviceId, signature, method, uri, timestamp, nonce, bodyHash, null);
+    }
+    
+    /**
+     * Validates a request signature with user metadata for policy enforcement.
+     * 
+     * @param deviceId The device ID from the request
+     * @param signature The HMAC signature from the request
+     * @param method The HTTP method
+     * @param uri The request URI
+     * @param timestamp The request timestamp
+     * @param nonce The request nonce
+     * @param bodyHash The hash of the request body (if present)
+     * @param userMetadata User metadata for policy enforcement
+     * @return SignatureValidationResponse indicating if the signature is valid
+     */
+    public SignatureValidationResponse validateSignatureWithMetadata(String deviceId, String signature,
+                                                                    String method, String uri, 
+                                                                    String timestamp, String nonce,
+                                                                    String bodyHash, Map<String, Object> userMetadata) {
         try {
             // Create the string to sign in the same format as the client
             String stringToSign = createStringToSign(method, uri, timestamp, nonce, bodyHash);
             
             logger.debug("Validating signature for device: {} with stringToSign: {}", deviceId, stringToSign);
             
-            // Create validation request with client ID
-            SignatureValidationRequest request = new SignatureValidationRequest(deviceId, signature, stringToSign, clientId);
+            // Create validation request with client ID and metadata
+            SignatureValidationRequest request = new SignatureValidationRequest(deviceId, signature, stringToSign);
+            request.setClientId(clientId);
+            request.setUserMetadata(userMetadata);
             
             // Set headers
             HttpHeaders headers = new HttpHeaders();

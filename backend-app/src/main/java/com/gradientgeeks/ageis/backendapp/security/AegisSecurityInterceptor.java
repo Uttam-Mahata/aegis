@@ -3,10 +3,13 @@ package com.gradientgeeks.ageis.backendapp.security;
 import com.gradientgeeks.ageis.backendapp.dto.SignatureValidationResponse;
 import com.gradientgeeks.ageis.backendapp.exception.UnauthorizedException;
 import com.gradientgeeks.ageis.backendapp.service.AegisIntegrationService;
+import com.gradientgeeks.ageis.backendapp.service.UserContextService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
@@ -16,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
 
 /**
  * Security interceptor that validates request signatures using the Aegis Security API.
@@ -26,6 +30,9 @@ public class AegisSecurityInterceptor implements HandlerInterceptor {
     private static final Logger logger = LoggerFactory.getLogger(AegisSecurityInterceptor.class);
     
     private final AegisIntegrationService aegisIntegrationService;
+    
+    @Autowired
+    private UserContextService userContextService;
     
     @Value("${security.request.signature.header}")
     private String signatureHeader;
@@ -71,15 +78,42 @@ public class AegisSecurityInterceptor implements HandlerInterceptor {
             bodyHash = computeBodyHash(request);
         }
         
-        // Validate signature with Aegis API
-        SignatureValidationResponse validationResponse = aegisIntegrationService.validateSignature(
+        // Extract user metadata for policy enforcement
+        Map<String, Object> userMetadata = null;
+        
+        // Try to get username from session if available
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            String username = (String) session.getAttribute("username");
+            if (username != null) {
+                // Determine transaction context based on URI
+                String transactionType = determineTransactionType(request.getRequestURI());
+                String beneficiaryType = extractBeneficiaryType(request);
+                
+                // Extract user metadata for policy enforcement
+                userMetadata = userContextService.extractUserMetadata(
+                        username, 
+                        deviceId, 
+                        transactionType,
+                        null, // Amount will be extracted from request body if needed
+                        beneficiaryType
+                );
+                
+                logger.debug("Extracted user metadata for policy enforcement: {}", 
+                           userMetadata != null ? userMetadata.keySet() : "none");
+            }
+        }
+        
+        // Validate signature with Aegis API including user metadata
+        SignatureValidationResponse validationResponse = aegisIntegrationService.validateSignatureWithMetadata(
                 deviceId,
                 signature,
                 request.getMethod(),
                 request.getRequestURI(),
                 timestamp,
                 nonce,
-                bodyHash
+                bodyHash,
+                userMetadata
         );
         
         if (!validationResponse.isValid()) {
@@ -139,5 +173,56 @@ public class AegisSecurityInterceptor implements HandlerInterceptor {
             }
         }
         return null;
+    }
+    
+    /**
+     * Determines transaction type based on request URI
+     */
+    private String determineTransactionType(String uri) {
+        if (uri == null) {
+            return null;
+        }
+        
+        // Map URIs to transaction types
+        if (uri.contains("/transfer")) {
+            return "TRANSFER";
+        } else if (uri.contains("/payment")) {
+            return "PAYMENT";
+        } else if (uri.contains("/withdrawal")) {
+            return "WITHDRAWAL";
+        } else if (uri.contains("/deposit")) {
+            return "DEPOSIT";
+        } else if (uri.contains("/balance")) {
+            return "BALANCE_CHECK";
+        } else if (uri.contains("/account")) {
+            return "ACCOUNT_ACCESS";
+        } else if (uri.contains("/login")) {
+            return "LOGIN";
+        } else if (uri.contains("/auth")) {
+            return "AUTHENTICATION";
+        }
+        
+        return "GENERAL";
+    }
+    
+    /**
+     * Extracts beneficiary type from request if applicable
+     */
+    private String extractBeneficiaryType(HttpServletRequest request) {
+        // Check request parameters or headers for beneficiary information
+        String beneficiaryId = request.getParameter("beneficiaryId");
+        if (beneficiaryId != null) {
+            // In a real implementation, you would check if this is a new or existing beneficiary
+            // For now, we'll use a simple heuristic
+            return beneficiaryId.startsWith("NEW_") ? "NEW" : "EXISTING";
+        }
+        
+        // Check custom header if present
+        String beneficiaryType = request.getHeader("X-Beneficiary-Type");
+        if (beneficiaryType != null) {
+            return beneficiaryType;
+        }
+        
+        return "UNKNOWN";
     }
 }

@@ -60,8 +60,10 @@ CREATE INDEX idx_devices_client_id ON devices(client_id);
 CREATE INDEX idx_devices_status ON devices(status);
 
 
--- Drop the old table if it exists to recreate with new structure
+-- Drop the old tables if they exist to recreate with new structure (in correct order for foreign keys)
 DROP TABLE IF EXISTS device_fingerprint_sensors;
+DROP TABLE IF EXISTS device_app_info;
+DROP TABLE IF EXISTS device_app_fingerprints;
 DROP TABLE IF EXISTS device_fingerprints;
 
 -- Device Fingerprints table for fraud detection

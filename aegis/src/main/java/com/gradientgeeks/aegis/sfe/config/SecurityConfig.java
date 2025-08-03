@@ -44,6 +44,7 @@ public class SecurityConfig {
                 .requestMatchers("/v1/register", "/v1/validate", "/v1/health").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/auth/**").permitAll()  // Allow authentication endpoints
+                .requestMatchers("/error").permitAll()  // Allow error endpoint
                 // Admin endpoints require authentication
                 .requestMatchers("/admin/**").authenticated()
                 // All other requests require authentication

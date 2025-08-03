@@ -12,6 +12,8 @@ import Profile from './pages/Profile';
 import OrganizationApproval from './pages/OrganizationApproval';
 import DeviceManagement from './pages/DeviceManagement';
 import FraudDashboard from './pages/FraudDashboard';
+import PolicyManagement from './pages/PolicyManagement';
+import PolicyForm from './pages/PolicyForm';
 
 // Components
 import Layout from './components/Layout';
@@ -65,6 +67,9 @@ function App() {
               <Route path="/registration-keys/create" element={<CreateKey />} />
               <Route path="/device-management" element={<DeviceManagement />} />
               <Route path="/fraud-dashboard" element={<FraudDashboard />} />
+              <Route path="/policies" element={<PolicyManagement />} />
+              <Route path="/policies/create" element={<PolicyForm />} />
+              <Route path="/policies/:id/edit" element={<PolicyForm />} />
               <Route path="/organizations" element={<OrganizationApproval />} />
               <Route path="/profile" element={<Profile />} />
             </Route>

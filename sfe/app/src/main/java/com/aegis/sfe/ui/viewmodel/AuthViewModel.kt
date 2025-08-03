@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.aegis.sfe.UCOBankApplication
 import com.aegis.sfe.data.api.ApiClientFactory
 import com.aegis.sfe.data.model.LoginState
+import com.aegis.sfe.data.model.UserInfo
 import com.aegis.sfe.data.repository.AuthRepository
 import org.json.JSONObject
 import com.google.gson.Gson
@@ -64,6 +65,9 @@ class AuthViewModel : ViewModel() {
                             UCOBankApplication.authToken = result.data.accessToken
                             UCOBankApplication.currentUser = result.data.user
                             
+                            // Set user context for policy enforcement
+                            setupUserContextForPolicyEnforcement(result.data.user, username, deviceId)
+                            
                             _loginState.value = _loginState.value.copy(
                                 isLoading = false,
                                 isLoggedIn = true,
@@ -115,8 +119,16 @@ class AuthViewModel : ViewModel() {
     }
     
     fun logout() {
+        Log.i(TAG, "User logging out - clearing session data")
+        
+        // Clear authentication data
         UCOBankApplication.authToken = null
         UCOBankApplication.currentUser = null
+        
+        // Clear user metadata from SDK for policy enforcement
+        UCOBankApplication.aegisClient.clearUserMetadata()
+        
+        // Reset login state
         _loginState.value = LoginState()
     }
     
@@ -264,6 +276,114 @@ class AuthViewModel : ViewModel() {
         }
         
         return ErrorInfo(reason, isDeviceBlocked, requiresRebinding, isTemporary)
+    }
+    
+    /**
+     * Sets up user context for policy enforcement after successful login.
+     * This provides the SDK with user metadata needed for security policy validation.
+     */
+    private fun setupUserContextForPolicyEnforcement(user: UserInfo, username: String, deviceId: String?) {
+        try {
+            Log.d(TAG, "Setting up user context for policy enforcement")
+            
+            // Calculate account age (simplified estimation based on user ID)
+            // In a real implementation, this would come from backend
+            val accountAge = estimateAccountAge(user.id)
+            
+            // Determine account tier based on email domain or other heuristics
+            val accountTier = determineAccountTier(user.email)
+            
+            // Determine KYC level (simplified - would come from backend)
+            val kycLevel = "BASIC" // Default for demo
+            
+            // Check device binding status (would be provided by backend)
+            val hasDeviceBinding = true // Assume device binding is enabled
+            val deviceBindingCount = 1 // Simplified for demo
+            
+            // Set user session context in the SDK
+            UCOBankApplication.aegisClient.setUserSessionContext(
+                accountTier = accountTier,
+                accountAge = accountAge,
+                kycLevel = kycLevel,
+                hasDeviceBinding = hasDeviceBinding,
+                deviceBindingCount = deviceBindingCount
+            )
+            
+            // Create anonymized user ID (in real implementation, this would come from backend)
+            val effectiveDeviceId = deviceId ?: UCOBankApplication.aegisClient.getDeviceId()
+            val anonymizedUserId = createAnonymizedUserId(username, effectiveDeviceId)
+            UCOBankApplication.aegisClient.setAnonymizedUserId(anonymizedUserId)
+            
+            // Report any risk factors detected during login
+            reportLoginRiskFactors(user, username)
+            
+            Log.i(TAG, "User context set for policy enforcement - Tier: $accountTier, Age: $accountAge months")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up user context for policy enforcement", e)
+        }
+    }
+    
+    /**
+     * Estimates account age based on user ID (simplified implementation).
+     * In production, this would be calculated from actual account creation date.
+     */
+    private fun estimateAccountAge(userId: Long): Int {
+        // Simple heuristic: newer user IDs = newer accounts
+        return when {
+            userId < 1000 -> 24 // Older accounts (2+ years)
+            userId < 5000 -> 12 // Established accounts (1 year)
+            userId < 10000 -> 6 // Recent accounts (6 months)
+            else -> 3 // New accounts (3 months)
+        }
+    }
+    
+    /**
+     * Determines account tier based on email domain or other criteria.
+     * In production, this would be determined by backend based on account type.
+     */
+    private fun determineAccountTier(email: String): String {
+        return when {
+            email.contains("@corporate") || email.contains("@company") -> "CORPORATE"
+            email.contains("@premium") || email.contains("@vip") -> "PREMIUM"
+            else -> "BASIC"
+        }
+    }
+    
+    /**
+     * Creates an anonymized user ID for policy tracking.
+     * In production, this would be generated by the backend service.
+     */
+    private fun createAnonymizedUserId(username: String, deviceId: String?): String {
+        return try {
+            val combinedData = "$username|${deviceId ?: "unknown"}|UCOBANK_ANDROID"
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val hashBytes = digest.digest(combinedData.toByteArray())
+            android.util.Base64.encodeToString(hashBytes, android.util.Base64.NO_WRAP).take(16)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error creating anonymized user ID", e)
+            "anon_${System.currentTimeMillis()}"
+        }
+    }
+    
+    /**
+     * Reports risk factors detected during login process.
+     */
+    private fun reportLoginRiskFactors(user: UserInfo, username: String) {
+        // In production, these would be determined by various security checks
+        val isLocationChanged = false // Would be determined by IP geolocation
+        val isDeviceChanged = false // Would be determined by device fingerprinting
+        val isDormantAccount = false // Would be determined by last login time
+        val requiresDeviceRebinding = false // Would be determined by security policies
+        
+        UCOBankApplication.aegisClient.reportRiskFactors(
+            isLocationChanged = isLocationChanged,
+            isDeviceChanged = isDeviceChanged,
+            isDormantAccount = isDormantAccount,
+            requiresDeviceRebinding = requiresDeviceRebinding
+        )
+        
+        Log.d(TAG, "Risk factors reported for user: $username")
     }
 }
 

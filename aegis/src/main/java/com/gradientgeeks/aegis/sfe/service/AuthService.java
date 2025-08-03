@@ -120,4 +120,13 @@ public class AuthService {
         
         return userRepository.save(user);
     }
+    
+    /**
+     * Get user by email
+     * @param email the email to search for
+     * @return the user or null if not found
+     */
+    public User getUserByEmail(String email) {
+        return userRepository.findByEmail(email).orElse(null);
+    }
 }

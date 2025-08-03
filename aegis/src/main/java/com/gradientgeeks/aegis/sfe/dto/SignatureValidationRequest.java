@@ -25,6 +25,9 @@ public class SignatureValidationRequest {
     // Client ID for multi-bank support
     private String clientId;
     
+    // User metadata for policy enforcement
+    private Map<String, Object> userMetadata;
+    
     public SignatureValidationRequest() {}
     
     public SignatureValidationRequest(String deviceId, String signature, String stringToSign) {
@@ -82,6 +85,14 @@ public class SignatureValidationRequest {
         this.clientId = clientId;
     }
     
+    public Map<String, Object> getUserMetadata() {
+        return userMetadata;
+    }
+    
+    public void setUserMetadata(Map<String, Object> userMetadata) {
+        this.userMetadata = userMetadata;
+    }
+    
     @Override
     public String toString() {
         return "SignatureValidationRequest{" +
@@ -89,6 +100,7 @@ public class SignatureValidationRequest {
                 ", signature='[REDACTED]'" +
                 ", stringToSign='" + stringToSign + '\'' +
                 ", clientId='" + clientId + '\'' +
+                ", userMetadata=" + (userMetadata != null ? "[METADATA_PROVIDED]" : "[NO_METADATA]") +
                 '}';
     }
 }
