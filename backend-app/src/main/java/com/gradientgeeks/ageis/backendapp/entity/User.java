@@ -9,6 +9,8 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -55,6 +57,15 @@ public class User {
     
     @Column(name = "requires_device_rebinding")
     private Boolean requiresDeviceRebinding = false;
+    
+    // Multiple device support
+    @ElementCollection
+    @CollectionTable(name = "user_devices", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "device_id")
+    private List<String> deviceIds = new ArrayList<>();
+    
+    @Column(name = "last_login")
+    private LocalDateTime lastLogin;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)
@@ -171,6 +182,27 @@ public class User {
     
     public void setRequiresDeviceRebinding(Boolean requiresDeviceRebinding) {
         this.requiresDeviceRebinding = requiresDeviceRebinding;
+    }
+    
+    public List<String> getDeviceIds() {
+        return deviceIds;
+    }
+    
+    public void setDeviceIds(List<String> deviceIds) {
+        this.deviceIds = deviceIds;
+    }
+    
+    public LocalDateTime getLastLogin() {
+        return lastLogin;
+    }
+    
+    public void setLastLogin(LocalDateTime lastLogin) {
+        this.lastLogin = lastLogin;
+    }
+    
+    // Helper method to get name (alias for fullName)
+    public String getName() {
+        return fullName;
     }
     
     /**

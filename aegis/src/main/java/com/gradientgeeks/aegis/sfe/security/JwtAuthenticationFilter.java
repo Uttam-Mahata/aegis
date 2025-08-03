@@ -65,7 +65,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // Set authentication in security context
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                     
-                    logger.debug("JWT authenticated user: {}", email);
+                    // Add user organization to request attribute for downstream controllers
+                    request.setAttribute("userOrganization", user.getOrganization());
+                    
+                    logger.debug("JWT authenticated user: {} from organization: {}", email, user.getOrganization());
                 }
             }
         } catch (Exception e) {

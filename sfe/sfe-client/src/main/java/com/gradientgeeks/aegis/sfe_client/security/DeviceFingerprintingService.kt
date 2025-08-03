@@ -2,6 +2,9 @@ package com.gradientgeeks.aegis.sfe_client.security
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.os.Build
@@ -26,21 +29,34 @@ class DeviceFingerprintingService(private val context: Context) {
     
     companion object {
         private const val TAG = "DeviceFingerprintingService"
-        private const val FINGERPRINT_VERSION = "1.0"
+        private const val FINGERPRINT_VERSION = "2.0"
+        
+        // Threshold for collecting app data - only when hardware similarity is very high (99%+)
+        private const val HIGH_SIMILARITY_THRESHOLD = 0.99
     }
     
     /**
      * Generates a comprehensive device fingerprint based on stable hardware characteristics.
+     * Optionally includes app package data for enhanced fraud detection when similarity threshold is met.
      * 
+     * @param existingFingerprint Optional existing fingerprint to compare against for similarity
      * @return DeviceFingerprint containing all collected characteristics
      */
-    suspend fun generateDeviceFingerprint(): DeviceFingerprint = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Generating device fingerprint")
+    suspend fun generateDeviceFingerprint(existingFingerprint: DeviceFingerprint? = null): DeviceFingerprint = withContext(Dispatchers.IO) {
+        Log.d(TAG, "Generating device fingerprint v$FINGERPRINT_VERSION")
         
         val hardware = collectHardwareFingerprint()
         val display = collectDisplayFingerprint()
         val sensors = collectSensorFingerprint()
         val network = collectNetworkFingerprint()
+        
+        // Only collect sensitive app data if we have high hardware similarity with existing fingerprint
+        val appData = if (shouldCollectAppData(hardware, existingFingerprint)) {
+            collectAppFingerprint()
+        } else {
+            Log.d(TAG, "Hardware similarity below threshold or no existing fingerprint - skipping app data collection")
+            null
+        }
         
         val fingerprint = DeviceFingerprint(
             version = FINGERPRINT_VERSION,
@@ -48,6 +64,7 @@ class DeviceFingerprintingService(private val context: Context) {
             displayFingerprint = display,
             sensorFingerprint = sensors,
             networkFingerprint = network,
+            appFingerprint = appData,
             timestamp = System.currentTimeMillis()
         )
         
@@ -141,6 +158,97 @@ class DeviceFingerprintingService(private val context: Context) {
             )
         }
     }
+    
+    /**
+     * Determines if app data should be collected based on hardware similarity threshold.
+     * Only collect sensitive app data when hardware characteristics are 99%+ similar to prevent
+     * unnecessary privacy invasion.
+     */
+    private fun shouldCollectAppData(currentHardware: HardwareFingerprint, existingFingerprint: DeviceFingerprint?): Boolean {
+        if (existingFingerprint == null) {
+            // No existing fingerprint to compare against - collect baseline app data
+            Log.d(TAG, "No existing fingerprint - collecting baseline app data for fraud detection")
+            return true
+        }
+        
+        val similarity = currentHardware.calculateSimilarity(existingFingerprint.hardwareFingerprint)
+        Log.d(TAG, "Hardware similarity: $similarity (threshold: $HIGH_SIMILARITY_THRESHOLD)")
+        
+        return similarity >= HIGH_SIMILARITY_THRESHOLD
+    }
+    
+    /**
+     * Collects installed application data for enhanced fraud detection.
+     * This includes both system and user apps with their package names and install times.
+     * Used only when hardware similarity is very high to minimize privacy impact.
+     */
+    @SuppressLint("QueryPermissionsNeeded")
+    private fun collectAppFingerprint(): AppFingerprint? {
+        return try {
+            Log.d(TAG, "Collecting app fingerprint data for fraud detection")
+            
+            val packageManager = context.packageManager
+            
+            // Get all installed applications
+            val installedApps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+            Log.d(TAG, "Found ${installedApps.size} total installed applications")
+            
+            val userApps = mutableListOf<AppInfo>()
+            val systemApps = mutableListOf<AppInfo>()
+            
+            for (appInfo in installedApps) {
+                try {
+                    val packageInfo = packageManager.getPackageInfo(appInfo.packageName, 0)
+                    
+                    val appEntry = AppInfo(
+                        packageName = appInfo.packageName,
+                        firstInstallTime = packageInfo.firstInstallTime,
+                        lastUpdateTime = packageInfo.lastUpdateTime,
+                        isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                    )
+                    
+                    if (appEntry.isSystemApp) {
+                        systemApps.add(appEntry)
+                    } else {
+                        userApps.add(appEntry)
+                        // Log user apps for debugging
+                        Log.d(TAG, "User app found: ${appInfo.packageName}")
+                    }
+                    
+                } catch (e: PackageManager.NameNotFoundException) {
+                    Log.w(TAG, "Package not found: ${appInfo.packageName}")
+                }
+            }
+            
+            // Sort by package name for consistent hashing
+            userApps.sortBy { it.packageName }
+            systemApps.sortBy { it.packageName }
+            
+            val appFingerprint = AppFingerprint(
+                userApps = userApps,
+                systemApps = systemApps,
+                totalAppCount = installedApps.size,
+                userAppCount = userApps.size,
+                systemAppCount = systemApps.size
+            )
+            
+            Log.d(TAG, "App fingerprint collected - Total: ${appFingerprint.totalAppCount}, " +
+                "User: ${appFingerprint.userAppCount}, System: ${appFingerprint.systemAppCount}")
+            
+            // Log first few user apps for verification
+            if (userApps.isNotEmpty()) {
+                Log.d(TAG, "Sample user apps: ${userApps.take(5).map { it.packageName }}")
+            } else {
+                Log.w(TAG, "WARNING: No user apps found! This may indicate permission issues.")
+            }
+            
+            appFingerprint
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error collecting app fingerprint", e)
+            null
+        }
+    }
 }
 
 /**
@@ -152,6 +260,7 @@ data class DeviceFingerprint(
     val displayFingerprint: DisplayFingerprint,
     val sensorFingerprint: SensorFingerprint,
     val networkFingerprint: NetworkFingerprint,
+    val appFingerprint: AppFingerprint? = null,
     val timestamp: Long
 ) {
     /**
@@ -163,6 +272,7 @@ data class DeviceFingerprint(
             append(displayFingerprint.getHash())
             append(sensorFingerprint.getHash())
             append(networkFingerprint.getHash())
+            appFingerprint?.let { append(it.getHash()) }
         }
         
         return MessageDigest.getInstance("SHA-256")
@@ -179,11 +289,26 @@ data class DeviceFingerprint(
         val sensorSimilarity = sensorFingerprint.calculateSimilarity(other.sensorFingerprint)
         val networkSimilarity = networkFingerprint.calculateSimilarity(other.networkFingerprint)
         
-        // Weighted average: hardware and display are most important
-        return (hardwareSimilarity * 0.4 + 
-                displaySimilarity * 0.3 + 
-                sensorSimilarity * 0.2 + 
-                networkSimilarity * 0.1)
+        // Include app similarity if both fingerprints have app data
+        val appSimilarity = if (appFingerprint != null && other.appFingerprint != null) {
+            appFingerprint.calculateSimilarity(other.appFingerprint)
+        } else null
+        
+        // Weighted average: hardware and display are most important, app data provides additional verification
+        return if (appSimilarity != null) {
+            // When app data is available, it gets significant weight for device reinstall detection
+            (hardwareSimilarity * 0.35 + 
+             displaySimilarity * 0.25 + 
+             sensorSimilarity * 0.15 + 
+             networkSimilarity * 0.05 + 
+             appSimilarity * 0.20)
+        } else {
+            // Original weighting when no app data
+            (hardwareSimilarity * 0.4 + 
+             displaySimilarity * 0.3 + 
+             sensorSimilarity * 0.2 + 
+             networkSimilarity * 0.1)
+        }
     }
 }
 
@@ -205,6 +330,7 @@ data class HardwareFingerprint(
 ) {
     fun getHash(): String {
         // Normalize values to ensure consistency across app installs
+        // IMPORTANT: buildFingerprint is the most unique identifier for individual devices
         val normalizedComposite = listOf(
             manufacturer.trim().lowercase(),
             model.trim().lowercase(),
@@ -214,7 +340,8 @@ data class HardwareFingerprint(
             brand.trim().lowercase(),
             hardware.trim().lowercase(),
             cpuArchitecture.trim().lowercase(),
-            apiLevel.toString()
+            apiLevel.toString(),
+            buildFingerprint.trim().lowercase()  // This ensures each physical device has unique hash
         ).joinToString(":")
         
         return MessageDigest.getInstance("SHA-256")
@@ -351,6 +478,7 @@ fun DeviceFingerprint.toApiData(): DeviceFingerprintData {
         display = this.displayFingerprint.toApiData(),
         sensors = this.sensorFingerprint.toApiData(),
         network = this.networkFingerprint.toApiData(),
+        apps = this.appFingerprint?.toApiData(),
         timestamp = this.timestamp
     )
 }
@@ -367,6 +495,7 @@ fun HardwareFingerprint.toApiData(): HardwareFingerprintData {
         brand = this.brand,
         cpuArchitecture = this.cpuArchitecture,
         apiLevel = this.apiLevel,
+        buildFingerprint = this.buildFingerprint,
         hash = this.getHash()
     )
 }
@@ -403,5 +532,121 @@ fun NetworkFingerprint.toApiData(): NetworkFingerprintData {
         simCountryIso = this.simCountryIso,
         phoneType = this.phoneType,
         hash = this.getHash()
+    )
+}
+
+/**
+ * App fingerprint containing installed application data for device reinstall detection.
+ */
+data class AppFingerprint(
+    val userApps: List<AppInfo>,
+    val systemApps: List<AppInfo>,
+    val totalAppCount: Int,
+    val userAppCount: Int,
+    val systemAppCount: Int
+) {
+    /**
+     * Generates a hash of the app fingerprint for efficient comparison.
+     */
+    fun getHash(): String {
+        // Create a composite string from app counts and selected package names
+        val composite = buildString {
+            append("total:$totalAppCount")
+            append(":user:$userAppCount")
+            append(":system:$systemAppCount")
+            
+            // Include user app package names for better uniqueness
+            append(":user_apps:")
+            userApps.forEach { app ->
+                append("${app.packageName},")
+            }
+            
+            // Include a sample of system apps for additional uniqueness
+            append(":system_apps:")
+            systemApps.take(50).forEach { app ->
+                append("${app.packageName},")
+            }
+        }
+        
+        return MessageDigest.getInstance("SHA-256")
+            .digest(composite.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+    }
+    
+    /**
+     * Calculates similarity with another app fingerprint.
+     * Focuses on app count similarity and common package names.
+     */
+    fun calculateSimilarity(other: AppFingerprint): Double {
+        // App count similarity (30% weight)
+        val totalCountSimilarity = 1.0 - (kotlin.math.abs(totalAppCount - other.totalAppCount).toDouble() / 
+                                         kotlin.math.max(totalAppCount, other.totalAppCount).toDouble())
+        
+        val userCountSimilarity = 1.0 - (kotlin.math.abs(userAppCount - other.userAppCount).toDouble() / 
+                                        kotlin.math.max(userAppCount, other.userAppCount).toDouble())
+        
+        // Package name similarity (70% weight)
+        val userPackageNames = userApps.map { it.packageName }.toSet()
+        val otherUserPackageNames = other.userApps.map { it.packageName }.toSet()
+        
+        val commonUserApps = userPackageNames.intersect(otherUserPackageNames).size
+        val totalUniqueUserApps = userPackageNames.union(otherUserPackageNames).size
+        
+        val userAppSimilarity = if (totalUniqueUserApps > 0) {
+            commonUserApps.toDouble() / totalUniqueUserApps.toDouble()
+        } else 1.0
+        
+        // System apps are less likely to change, but check a subset
+        val systemPackageNames = systemApps.map { it.packageName }.toSet()
+        val otherSystemPackageNames = other.systemApps.map { it.packageName }.toSet()
+        
+        val commonSystemApps = systemPackageNames.intersect(otherSystemPackageNames).size
+        val totalUniqueSystemApps = systemPackageNames.union(otherSystemPackageNames).size
+        
+        val systemAppSimilarity = if (totalUniqueSystemApps > 0) {
+            commonSystemApps.toDouble() / totalUniqueSystemApps.toDouble()
+        } else 1.0
+        
+        // Weighted similarity: user apps matter more for device identification
+        return (totalCountSimilarity * 0.15 + 
+                userCountSimilarity * 0.15 + 
+                userAppSimilarity * 0.50 + 
+                systemAppSimilarity * 0.20)
+    }
+}
+
+/**
+ * Information about an installed application.
+ */
+data class AppInfo(
+    val packageName: String,
+    val firstInstallTime: Long,
+    val lastUpdateTime: Long,
+    val isSystemApp: Boolean
+)
+
+/**
+ * Extension function to convert AppFingerprint to AppFingerprintData.
+ */
+fun AppFingerprint.toApiData(): AppFingerprintData {
+    return AppFingerprintData(
+        userApps = this.userApps.map { it.toApiData() },
+        systemApps = this.systemApps.map { it.toApiData() },
+        totalAppCount = this.totalAppCount,
+        userAppCount = this.userAppCount,
+        systemAppCount = this.systemAppCount,
+        hash = this.getHash()
+    )
+}
+
+/**
+ * Extension function to convert AppInfo to AppInfoData.
+ */
+fun AppInfo.toApiData(): AppInfoData {
+    return AppInfoData(
+        packageName = this.packageName,
+        firstInstallTime = this.firstInstallTime,
+        lastUpdateTime = this.lastUpdateTime,
+        isSystemApp = this.isSystemApp
     )
 }

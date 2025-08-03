@@ -47,6 +47,12 @@ data class DeviceFingerprintData(
     val network: NetworkFingerprintData,
     
     /**
+     * Application fingerprint (optional, only when similarity threshold met).
+     */
+    @SerializedName("apps")
+    val apps: AppFingerprintData? = null,
+    
+    /**
      * Timestamp when fingerprint was generated.
      */
     @SerializedName("timestamp")
@@ -77,6 +83,9 @@ data class HardwareFingerprintData(
     
     @SerializedName("apiLevel")
     val apiLevel: Int,
+    
+    @SerializedName("buildFingerprint")
+    val buildFingerprint: String,
     
     @SerializedName("hash")
     val hash: String
@@ -128,4 +137,44 @@ data class NetworkFingerprintData(
     
     @SerializedName("hash")
     val hash: String
+)
+
+/**
+ * App fingerprint data for API transmission.
+ */
+data class AppFingerprintData(
+    @SerializedName("userApps")
+    val userApps: List<AppInfoData>,
+    
+    @SerializedName("systemApps")
+    val systemApps: List<AppInfoData>,
+    
+    @SerializedName("totalAppCount")
+    val totalAppCount: Int,
+    
+    @SerializedName("userAppCount")
+    val userAppCount: Int,
+    
+    @SerializedName("systemAppCount")
+    val systemAppCount: Int,
+    
+    @SerializedName("hash")
+    val hash: String
+)
+
+/**
+ * App information data for API transmission.
+ */
+data class AppInfoData(
+    @SerializedName("packageName")
+    val packageName: String,
+    
+    @SerializedName("firstInstallTime")
+    val firstInstallTime: Long,
+    
+    @SerializedName("lastUpdateTime")
+    val lastUpdateTime: Long,
+    
+    @SerializedName("isSystemApp")
+    val isSystemApp: Boolean
 )

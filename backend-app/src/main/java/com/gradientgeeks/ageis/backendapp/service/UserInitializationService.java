@@ -5,6 +5,7 @@ import com.gradientgeeks.ageis.backendapp.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,10 +20,13 @@ public class UserInitializationService {
     
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final KYCService kycService;
     
-    public UserInitializationService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    @Autowired
+    public UserInitializationService(UserRepository userRepository, PasswordEncoder passwordEncoder, KYCService kycService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.kycService = kycService;
     }
     
     @PostConstruct
@@ -39,8 +43,19 @@ public class UserInitializationService {
             user1.setFullName("Anurag Sharma");
             user1.setPhoneNumber("+919876543210");
             user1.setIsActive(true);
-            userRepository.save(user1);
+            user1 = userRepository.save(user1);
             logger.info("Created sample user: demo1");
+            
+            // Create KYC data for demo1
+            kycService.createOrUpdateKYC(user1, "1234", "ABCDE1234F");
+            
+            // Create security questions for demo1
+            kycService.createOrUpdateSecurityQuestion(user1, "mother_maiden_name", 
+                "What is your mother's maiden name?", "sharma");
+            kycService.createOrUpdateSecurityQuestion(user1, "first_school", 
+                "What was the name of your first school?", "dps");
+            
+            logger.info("Created KYC and security questions for demo1");
         }
         
         // Create sample user 2
@@ -52,8 +67,32 @@ public class UserInitializationService {
             user2.setFullName("Priya Patel");
             user2.setPhoneNumber("+919876543211");
             user2.setIsActive(true);
-            userRepository.save(user2);
+            user2 = userRepository.save(user2);
             logger.info("Created sample user: demo2");
+            
+            // Create KYC data for demo2
+            kycService.createOrUpdateKYC(user2, "5678", "FGHIJ5678K");
+            
+            // Create security questions for demo2
+            kycService.createOrUpdateSecurityQuestion(user2, "mother_maiden_name", 
+                "What is your mother's maiden name?", "patel");
+            kycService.createOrUpdateSecurityQuestion(user2, "first_school", 
+                "What was the name of your first school?", "kvs");
+            
+            logger.info("Created KYC and security questions for demo2");
+        }
+        
+        // Create admin user
+        if (!userRepository.existsByUsername("admin")) {
+            User adminUser = new User();
+            adminUser.setUsername("admin");
+            adminUser.setPasswordHash(passwordEncoder.encode("admin123"));
+            adminUser.setEmail("admin@ucobank.com");
+            adminUser.setFullName("Bank Administrator");
+            adminUser.setPhoneNumber("+919876543220");
+            adminUser.setIsActive(true);
+            userRepository.save(adminUser);
+            logger.info("Created admin user");
         }
         
         logger.info("Sample users initialization completed");

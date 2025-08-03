@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 /**
  * Service to initialize sample data for demo purposes.
@@ -42,8 +43,11 @@ public class DataInitializationService {
         logger.info("Initializing sample data...");
         
         // Get the actual user IDs from the database
-        User demo1 = userRepository.findByUsername("demo1").orElse(null);
-        User demo2 = userRepository.findByUsername("demo2").orElse(null);
+        Optional<User> demo1Opt = userRepository.findByUsername("demo1");
+        Optional<User> demo2Opt = userRepository.findByUsername("demo2");
+        
+        User demo1 = demo1Opt.orElse(null);
+        User demo2 = demo2Opt.orElse(null);
         
         if (demo1 != null) {
             // Create accounts for demo1 user

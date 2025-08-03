@@ -114,13 +114,28 @@ export const adminService = {
 export const policyService = {
   // Create a new policy
   createPolicy: async (policy: Policy): Promise<Policy> => {
-    const response = await api.post<Policy>('/policies', policy);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const requestData = {
+      ...policy,
+      clientId: policy.clientId || `${user.organization}_PROD_ANDROID`
+    };
+    
+    const response = await api.post<Policy>('/policies', requestData, {
+      headers: {
+        'X-User-Organization': user.organization
+      }
+    });
     return response.data;
   },
 
   // Update an existing policy
   updatePolicy: async (policyId: number, policy: Policy): Promise<Policy> => {
-    const response = await api.put<Policy>(`/policies/${policyId}`, policy);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const response = await api.put<Policy>(`/policies/${policyId}`, policy, {
+      headers: {
+        'X-User-Organization': user.organization
+      }
+    });
     return response.data;
   },
 
@@ -131,9 +146,43 @@ export const policyService = {
     return response.data;
   },
 
+  // Get policies by organization
+  getPoliciesByOrganization: async (): Promise<Policy[]> => {
+    const response = await api.get<Policy[]>('/policies');
+    return response.data;
+  },
+  
+  // Get policy by ID
+  getPolicyById: async (policyId: number): Promise<Policy> => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const response = await api.get<Policy>(`/policies/${policyId}`, {
+      headers: {
+        'X-User-Organization': user.organization
+      }
+    });
+    return response.data;
+  },
+
   // Delete a policy
   deletePolicy: async (policyId: number): Promise<void> => {
-    await api.delete(`/policies/${policyId}`);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    await api.delete(`/policies/${policyId}`, {
+      headers: {
+        'X-User-Organization': user.organization
+      }
+    });
+  },
+  
+  // Update policy status (active/inactive)
+  updatePolicyStatus: async (policyId: number, active: boolean): Promise<Policy> => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const response = await api.put<Policy>(`/policies/${policyId}/status`, null, {
+      params: { active },
+      headers: {
+        'X-User-Organization': user.organization
+      }
+    });
+    return response.data;
   },
 
   // Get policy violations for a device
@@ -142,9 +191,43 @@ export const policyService = {
     from: string, 
     to: string
   ): Promise<PolicyViolation[]> => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
     const response = await api.get<PolicyViolation[]>(`/policies/violations/${encodeURIComponent(deviceId)}`, {
-      params: { from, to }
+      params: { from, to },
+      headers: {
+        'X-User-Organization': user.organization
+      }
     });
+    return response.data;
+  },
+  
+  // Get violation statistics
+  getViolationStatistics: async (from: string, to: string): Promise<any> => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const response = await api.get('/policies/violations/statistics', {
+      params: { from, to },
+      headers: {
+        'X-User-Organization': user.organization
+      }
+    });
+    return response.data;
+  },
+  
+  // Get available policy types
+  getPolicyTypes: async (): Promise<string[]> => {
+    const response = await api.get<string[]>('/policies/types');
+    return response.data;
+  },
+  
+  // Get available enforcement levels
+  getEnforcementLevels: async (): Promise<string[]> => {
+    const response = await api.get<string[]>('/policies/enforcement-levels');
+    return response.data;
+  },
+  
+  // Get available policy fields for rule configuration
+  getPolicyFields: async (): Promise<any[]> => {
+    const response = await api.get<any[]>('/policies/fields');
     return response.data;
   },
 };

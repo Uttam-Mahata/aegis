@@ -29,6 +29,9 @@ public class DeviceFingerprintDto {
     @NotNull(message = "Network fingerprint is required")
     private NetworkFingerprintDto network;
     
+    // Optional app fingerprint for enhanced fraud detection (only when similarity threshold met)
+    private AppFingerprintDto apps;
+    
     @Positive(message = "Timestamp must be positive")
     private Long timestamp;
     
@@ -80,6 +83,14 @@ public class DeviceFingerprintDto {
     
     public void setNetwork(NetworkFingerprintDto network) {
         this.network = network;
+    }
+    
+    public AppFingerprintDto getApps() {
+        return apps;
+    }
+    
+    public void setApps(AppFingerprintDto apps) {
+        this.apps = apps;
     }
     
     public Long getTimestamp() {

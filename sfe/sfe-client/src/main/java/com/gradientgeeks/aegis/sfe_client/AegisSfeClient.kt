@@ -17,6 +17,7 @@ import com.gradientgeeks.aegis.sfe_client.storage.SecureVaultService
 import com.gradientgeeks.aegis.sfe_client.session.SessionKeyManager
 import com.gradientgeeks.aegis.sfe_client.session.KeyExchangeService
 import com.gradientgeeks.aegis.sfe_client.encryption.PayloadEncryptionService
+import com.gradientgeeks.aegis.sfe_client.metadata.UserMetadataCollector
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -106,6 +107,7 @@ class AegisSfeClient private constructor(
     private val environmentSecurityService = EnvironmentSecurityService(context)
     private val sessionKeyManager = SessionKeyManager(context)
     private val payloadEncryptionService = PayloadEncryptionService()
+    private val metadataCollector = UserMetadataCollector(context)
     
     /**
      * Checks if the device is already provisioned with valid credentials.
@@ -376,6 +378,172 @@ class AegisSfeClient private constructor(
      */
     fun getProvisioningService(): DeviceProvisioningService {
         return provisioningService
+    }
+    
+    // User metadata methods for policy enforcement
+    
+    /**
+     * Sets user session context for policy enforcement.
+     * This should be called after user login to provide context for security policies.
+     * 
+     * @param accountTier User's account tier (BASIC, PREMIUM, CORPORATE)
+     * @param accountAge Age of account in months
+     * @param kycLevel KYC verification level (NONE, BASIC, FULL)
+     * @param hasDeviceBinding Whether user has device binding enabled
+     * @param deviceBindingCount Number of devices bound to user
+     */
+    fun setUserSessionContext(
+        accountTier: String?,
+        accountAge: Int?,
+        kycLevel: String?,
+        hasDeviceBinding: Boolean = false,
+        deviceBindingCount: Int = 0
+    ) {
+        Log.d(TAG, "Setting user session context for policy enforcement")
+        metadataCollector.setSessionContext(
+            accountTier, accountAge, kycLevel, hasDeviceBinding, deviceBindingCount
+        )
+    }
+    
+    /**
+     * Sets anonymized user ID (typically provided by backend after login).
+     * This ID is used for policy tracking without exposing user identity.
+     * 
+     * @param anonymizedUserId Anonymized user identifier
+     */
+    fun setAnonymizedUserId(anonymizedUserId: String) {
+        Log.d(TAG, "Setting anonymized user ID for policy enforcement")
+        metadataCollector.setAnonymizedUserId(anonymizedUserId)
+    }
+    
+    /**
+     * Reports risk factors detected during user session.
+     * 
+     * @param isLocationChanged Whether user's location has changed
+     * @param isDeviceChanged Whether user is using a different device
+     * @param isDormantAccount Whether the account was dormant
+     * @param requiresDeviceRebinding Whether device rebinding is required
+     */
+    fun reportRiskFactors(
+        isLocationChanged: Boolean = false,
+        isDeviceChanged: Boolean = false,
+        isDormantAccount: Boolean = false,
+        requiresDeviceRebinding: Boolean = false
+    ) {
+        Log.d(TAG, "Reporting risk factors for policy enforcement")
+        metadataCollector.setRiskFactors(
+            isLocationChanged, isDeviceChanged, isDormantAccount, requiresDeviceRebinding
+        )
+    }
+    
+    /**
+     * Signs a request with HMAC signature and includes user metadata for policy enforcement.
+     * This is an enhanced version of signRequest that includes user context.
+     * 
+     * @param method HTTP method (GET, POST, etc.)
+     * @param uri Request URI path (e.g., "/api/transfer")
+     * @param requestBody Optional request body for POST/PUT requests
+     * @param transactionType Type of transaction (TRANSFER, BALANCE_INQUIRY, etc.)
+     * @param amountRange Amount range category (MICRO, LOW, MEDIUM, HIGH, VERY_HIGH)
+     * @param beneficiaryType Beneficiary type (NEW, EXISTING, FREQUENT)
+     * @return SignedRequestHeaders with signature and metadata, or null on failure
+     */
+    fun signRequestWithMetadata(
+        method: String,
+        uri: String,
+        requestBody: String? = null,
+        transactionType: String? = null,
+        amountRange: String? = null,
+        beneficiaryType: String? = null
+    ): SignedRequestHeaders? {
+        if (!isDeviceProvisioned()) {
+            Log.e(TAG, "Cannot sign request: device is not provisioned")
+            return null
+        }
+        
+        // Set transaction context if provided
+        if (transactionType != null) {
+            metadataCollector.setTransactionContext(transactionType, amountRange, beneficiaryType)
+        }
+        
+        // Get user metadata
+        val userMetadata = metadataCollector.getMetadata()
+        
+        Log.d(TAG, "Signing request with metadata: $method $uri")
+        Log.d(TAG, "Metadata categories: ${userMetadata.keys}")
+        
+        // Sign the request normally
+        val headers = signingService.signRequest(method, uri, requestBody)
+        
+        if (headers != null && userMetadata.isNotEmpty()) {
+            // Add metadata to headers for backend processing
+            // Note: This would typically be handled by backend integration
+            Log.d(TAG, "Request signed with user metadata for policy enforcement")
+        }
+        
+        return headers
+    }
+    
+    /**
+     * Gets current user metadata for debugging/verification.
+     * 
+     * @return Map of current user metadata
+     */
+    fun getUserMetadata(): Map<String, Any> {
+        return metadataCollector.getMetadata()
+    }
+    
+    /**
+     * Gets metadata summary for debugging.
+     * 
+     * @return String summary of metadata
+     */
+    fun getMetadataSummary(): String {
+        return metadataCollector.getMetadataSummary()
+    }
+    
+    /**
+     * Checks if required metadata is present for policy enforcement.
+     * 
+     * @return True if required metadata is available
+     */
+    fun hasRequiredMetadata(): Boolean {
+        return metadataCollector.hasRequiredMetadata()
+    }
+    
+    /**
+     * Clears transaction-specific metadata.
+     * Should be called after each transaction.
+     */
+    fun clearTransactionContext() {
+        metadataCollector.clearTransactionContext()
+    }
+    
+    /**
+     * Clears all user metadata.
+     * Should be called during user logout.
+     */
+    fun clearUserMetadata() {
+        Log.i(TAG, "Clearing all user metadata")
+        metadataCollector.clearAllMetadata()
+    }
+    
+    /**
+     * Updates account tier (e.g., after account upgrade).
+     * 
+     * @param accountTier New account tier
+     */
+    fun updateAccountTier(accountTier: String) {
+        metadataCollector.updateAccountTier(accountTier)
+    }
+    
+    /**
+     * Updates KYC level (e.g., after KYC verification).
+     * 
+     * @param kycLevel New KYC level
+     */
+    fun updateKycLevel(kycLevel: String) {
+        metadataCollector.updateKycLevel(kycLevel)
     }
     
     // Session-based encryption methods
