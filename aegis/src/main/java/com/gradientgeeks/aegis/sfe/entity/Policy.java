@@ -2,6 +2,7 @@ package com.gradientgeeks.aegis.sfe.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -37,14 +38,12 @@ public class Policy {
     @Column(name = "organization", nullable = false)
     private String organization;
     
-    @NotBlank
-    @Size(max = 50)
+    @NotNull
     @Column(name = "policy_type", nullable = false)
     @Enumerated(EnumType.STRING)
     private PolicyType policyType;
     
-    @NotBlank
-    @Size(max = 50)
+    @NotNull
     @Column(name = "enforcement_level", nullable = false)
     @Enumerated(EnumType.STRING)
     private EnforcementLevel enforcementLevel;

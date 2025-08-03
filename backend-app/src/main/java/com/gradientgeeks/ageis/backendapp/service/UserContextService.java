@@ -124,8 +124,10 @@ public class UserContextService {
         
         transactionContext.put("transactionType", transactionType);
         
-        // Categorize amount into ranges for privacy
+        // Add actual transaction amount for policy validation
         if (transactionAmount != null) {
+            transactionContext.put("amount", transactionAmount);
+            // Also categorize amount into ranges for privacy
             String amountRange = categorizeAmount(transactionAmount);
             transactionContext.put("amountRange", amountRange);
         }
@@ -176,24 +178,13 @@ public class UserContextService {
         List<Account> accounts = accountRepository.findByUserId(user.getId().toString());
         
         if (accounts.isEmpty()) {
-            return "BASIC";
+            return "SAVINGS"; // Default to SAVINGS
         }
         
-        // Check for premium account types
-        boolean hasCorporate = accounts.stream()
-                .anyMatch(account -> account.getAccountType() == AccountType.CORPORATE);
-        if (hasCorporate) {
-            return "CORPORATE";
-        }
-        
-        boolean hasPremium = accounts.stream()
-                .anyMatch(account -> account.getAccountType() == AccountType.PREMIUM_SAVINGS || 
-                                   account.getAccountType() == AccountType.PREMIUM_CHECKING);
-        if (hasPremium) {
-            return "PREMIUM";
-        }
-        
-        return "BASIC";
+        // Return the account type of the first account (primary account)
+        // In a real system, you might want to select based on priority or user preference
+        Account primaryAccount = accounts.get(0);
+        return primaryAccount.getAccountType().toString();
     }
     
     /**

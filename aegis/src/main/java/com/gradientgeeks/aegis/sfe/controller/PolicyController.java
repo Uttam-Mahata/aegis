@@ -140,6 +140,54 @@ public class PolicyController extends BaseController {
     }
     
     /**
+     * Gets all available policy fields for rule configuration
+     */
+    @GetMapping("/fields")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
+    public ResponseEntity<?> getPolicyFields() {
+        try {
+            List<PolicyFieldConfigDto> fields = policyFieldConfigService.getAllPolicyFields();
+            return ResponseEntity.ok(fields);
+        } catch (Exception e) {
+            logger.error("Error getting policy fields", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get policy fields"));
+        }
+    }
+    
+    /**
+     * Gets all available policy types
+     */
+    @GetMapping("/types")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
+    public ResponseEntity<?> getPolicyTypes() {
+        try {
+            Policy.PolicyType[] types = Policy.PolicyType.values();
+            return ResponseEntity.ok(types);
+        } catch (Exception e) {
+            logger.error("Error getting policy types", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get policy types"));
+        }
+    }
+    
+    /**
+     * Gets all available enforcement levels
+     */
+    @GetMapping("/enforcement-levels")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
+    public ResponseEntity<?> getEnforcementLevels() {
+        try {
+            Policy.EnforcementLevel[] levels = Policy.EnforcementLevel.values();
+            return ResponseEntity.ok(levels);
+        } catch (Exception e) {
+            logger.error("Error getting enforcement levels", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to get enforcement levels"));
+        }
+    }
+    
+    /**
      * Gets a specific policy by ID
      */
     @GetMapping("/{policyId}")
@@ -253,54 +301,6 @@ public class PolicyController extends BaseController {
             logger.error("Error getting violation statistics", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to get violation statistics"));
-        }
-    }
-    
-    /**
-     * Gets all available policy types
-     */
-    @GetMapping("/types")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
-    public ResponseEntity<?> getPolicyTypes() {
-        try {
-            Policy.PolicyType[] types = Policy.PolicyType.values();
-            return ResponseEntity.ok(types);
-        } catch (Exception e) {
-            logger.error("Error getting policy types", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to get policy types"));
-        }
-    }
-    
-    /**
-     * Gets all available enforcement levels
-     */
-    @GetMapping("/enforcement-levels")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
-    public ResponseEntity<?> getEnforcementLevels() {
-        try {
-            Policy.EnforcementLevel[] levels = Policy.EnforcementLevel.values();
-            return ResponseEntity.ok(levels);
-        } catch (Exception e) {
-            logger.error("Error getting enforcement levels", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to get enforcement levels"));
-        }
-    }
-    
-    /**
-     * Gets all available policy fields for rule configuration
-     */
-    @GetMapping("/fields")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
-    public ResponseEntity<?> getPolicyFields() {
-        try {
-            List<PolicyFieldConfigDto> fields = policyFieldConfigService.getAllPolicyFields();
-            return ResponseEntity.ok(fields);
-        } catch (Exception e) {
-            logger.error("Error getting policy fields", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to get policy fields"));
         }
     }
     

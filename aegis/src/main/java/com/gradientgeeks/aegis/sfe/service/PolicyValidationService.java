@@ -467,14 +467,18 @@ public class PolicyValidationService {
         if (accountTier == null) return 50000.0; // Default limit
         
         switch (accountTier.toUpperCase()) {
-            case "BASIC":
+            case "SAVINGS":
                 return 50000.0;   // ₹50,000
-            case "PREMIUM":
-                return 200000.0;  // ₹2,00,000
+            case "CURRENT":
+                return 100000.0;  // ₹1,00,000
+            case "FIXED_DEPOSIT":
+            case "RECURRING_DEPOSIT":
+                return 25000.0;   // ₹25,000
             case "CORPORATE":
                 return 1000000.0; // ₹10,00,000
-            case "VIP":
-                return 5000000.0; // ₹50,00,000
+            case "PREMIUM_SAVINGS":
+            case "PREMIUM_CHECKING":
+                return 200000.0;  // ₹2,00,000
             default:
                 return 50000.0;
         }
@@ -487,14 +491,18 @@ public class PolicyValidationService {
         if (accountTier == null) return 25000.0; // Default limit
         
         switch (accountTier.toUpperCase()) {
-            case "BASIC":
+            case "SAVINGS":
                 return 25000.0;   // ₹25,000
-            case "PREMIUM":
-                return 100000.0;  // ₹1,00,000
+            case "CURRENT":
+                return 50000.0;   // ₹50,000
+            case "FIXED_DEPOSIT":
+            case "RECURRING_DEPOSIT":
+                return 10000.0;   // ₹10,000
             case "CORPORATE":
                 return 500000.0;  // ₹5,00,000
-            case "VIP":
-                return 2000000.0; // ₹20,00,000
+            case "PREMIUM_SAVINGS":
+            case "PREMIUM_CHECKING":
+                return 100000.0;  // ₹1,00,000
             default:
                 return 25000.0;
         }
@@ -507,14 +515,18 @@ public class PolicyValidationService {
         if (accountTier == null) return 1000000.0; // Default limit
         
         switch (accountTier.toUpperCase()) {
-            case "BASIC":
+            case "SAVINGS":
                 return 1000000.0;   // ₹10,00,000
-            case "PREMIUM":
-                return 5000000.0;   // ₹50,00,000
+            case "CURRENT":
+                return 2000000.0;   // ₹20,00,000
+            case "FIXED_DEPOSIT":
+            case "RECURRING_DEPOSIT":
+                return 500000.0;    // ₹5,00,000
             case "CORPORATE":
                 return 25000000.0;  // ₹2,50,00,000
-            case "VIP":
-                return 100000000.0; // ₹10,00,00,000
+            case "PREMIUM_SAVINGS":
+            case "PREMIUM_CHECKING":
+                return 5000000.0;   // ₹50,00,000
             default:
                 return 1000000.0;
         }

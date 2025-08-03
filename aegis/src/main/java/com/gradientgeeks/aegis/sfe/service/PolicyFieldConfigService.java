@@ -54,8 +54,8 @@ public class PolicyFieldConfigService {
             "User account tier determining transaction limits", 
             "Account", PolicyFieldConfigDto.FieldType.ENUM
         );
-        accountTier.setPossibleValues(Arrays.asList("BASIC", "PREMIUM", "CORPORATE", "VIP"));
-        accountTier.setSampleValue("BASIC");
+        accountTier.setPossibleValues(Arrays.asList("SAVINGS", "CURRENT", "FIXED_DEPOSIT", "RECURRING_DEPOSIT", "CORPORATE", "PREMIUM_SAVINGS", "PREMIUM_CHECKING"));
+        accountTier.setSampleValue("SAVINGS");
         fields.add(accountTier);
         
         PolicyFieldConfigDto accountAge = new PolicyFieldConfigDto(

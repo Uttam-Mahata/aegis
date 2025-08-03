@@ -2,6 +2,7 @@ package com.gradientgeeks.aegis.sfe.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -39,8 +40,7 @@ public class PolicyRule {
     @Column(name = "condition_field", nullable = false)
     private String conditionField;
     
-    @NotBlank
-    @Size(max = 50)
+    @NotNull
     @Column(name = "operator", nullable = false)
     @Enumerated(EnumType.STRING)
     private RuleOperator operator;

@@ -90,17 +90,26 @@ public class AegisSecurityInterceptor implements HandlerInterceptor {
                 String transactionType = determineTransactionType(request.getRequestURI());
                 String beneficiaryType = extractBeneficiaryType(request);
                 
+                // Extract transaction amount if this is a transfer
+                Object transactionAmount = null;
+                if ("TRANSFER".equals(transactionType) && request.getContentLength() > 0) {
+                    transactionAmount = extractTransactionAmount(request);
+                }
+                
                 // Extract user metadata for policy enforcement
                 userMetadata = userContextService.extractUserMetadata(
                         username, 
                         deviceId, 
                         transactionType,
-                        null, // Amount will be extracted from request body if needed
+                        transactionAmount,
                         beneficiaryType
                 );
                 
                 logger.debug("Extracted user metadata for policy enforcement: {}", 
                            userMetadata != null ? userMetadata.keySet() : "none");
+                if (transactionAmount != null) {
+                    logger.debug("Transaction amount: {}", transactionAmount);
+                }
             }
         }
         
@@ -224,5 +233,40 @@ public class AegisSecurityInterceptor implements HandlerInterceptor {
         }
         
         return "UNKNOWN";
+    }
+    
+    /**
+     * Extracts transaction amount from request body if available
+     */
+    private Object extractTransactionAmount(HttpServletRequest request) {
+        try {
+            // Read the body - our RepeatableRequestBodyFilter ensures this can be read multiple times
+            String body = StreamUtils.copyToString(request.getInputStream(), StandardCharsets.UTF_8);
+            if (!body.isEmpty()) {
+                // Parse JSON to extract amount
+                // This is a simple implementation - in production use proper JSON parsing
+                if (body.contains("\"amount\"")) {
+                    int amountIndex = body.indexOf("\"amount\"");
+                    int colonIndex = body.indexOf(":", amountIndex);
+                    int commaIndex = body.indexOf(",", colonIndex);
+                    int endIndex = commaIndex > 0 ? commaIndex : body.indexOf("}", colonIndex);
+                    
+                    if (colonIndex > 0 && endIndex > colonIndex) {
+                        String amountStr = body.substring(colonIndex + 1, endIndex).trim();
+                        // Remove quotes if present
+                        amountStr = amountStr.replace("\"", "");
+                        
+                        try {
+                            return Double.parseDouble(amountStr);
+                        } catch (NumberFormatException e) {
+                            logger.debug("Could not parse amount: {}", amountStr);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Could not extract transaction amount from request", e);
+        }
+        return null;
     }
 }
