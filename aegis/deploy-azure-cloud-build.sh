@@ -31,22 +31,22 @@ fi
 
 echo "✅ Pre-built JAR found!"
 
-# Create resource group
-echo "📦 Creating resource group..."
+# Create resource group (skip if exists)
+echo "📦 Checking/Creating resource group..."
 az group create \
     --name $RESOURCE_GROUP \
     --location $LOCATION \
-    --output table
+    --output table || echo "Resource group already exists"
 
-# Create Azure Container Registry
-echo "🏗️ Creating Azure Container Registry..."
+# Create Azure Container Registry (skip if exists)
+echo "🏗️ Checking/Creating Azure Container Registry..."
 az acr create \
     --resource-group $RESOURCE_GROUP \
     --name $ACR_NAME \
     --sku Basic \
     --location $LOCATION \
     --admin-enabled true \
-    --output table
+    --output table || echo "Container registry already exists"
 
 # Get ACR login server
 ACR_LOGIN_SERVER=$(az acr show --name $ACR_NAME --resource-group $RESOURCE_GROUP --query loginServer --output tsv)
@@ -110,15 +110,15 @@ rm -rf "$BUILD_CONTEXT_DIR"
 
 echo "✅ Image built and pushed to ACR successfully!"
 
-# Create Redis Cache
-echo "🔴 Creating Azure Redis Cache..."
+# Create Redis Cache (skip if exists)
+echo "🔴 Checking/Creating Azure Redis Cache..."
 az redis create \
     --resource-group $RESOURCE_GROUP \
     --name $REDIS_NAME \
     --location $LOCATION \
     --sku Basic \
     --vm-size c0 \
-    --output table
+    --output table || echo "Redis cache already exists"
 
 # Get Redis connection details
 REDIS_HOST=$(az redis show --name $REDIS_NAME --resource-group $RESOURCE_GROUP --query hostName --output tsv)
@@ -126,8 +126,9 @@ REDIS_KEY=$(az redis list-keys --name $REDIS_NAME --resource-group $RESOURCE_GRO
 
 echo "🔴 Redis Host: $REDIS_HOST"
 
-# Create Container Instance
+# Create Container Instance (delete if exists first)
 echo "🐳 Creating Azure Container Instance..."
+az container delete --resource-group $RESOURCE_GROUP --name $CONTAINER_NAME --yes || echo "No existing container to delete"
 az container create \
     --resource-group $RESOURCE_GROUP \
     --name $CONTAINER_NAME \
@@ -139,6 +140,7 @@ az container create \
     --ports 8080 \
     --cpu 2 \
     --memory 4 \
+    --os-type Linux \
     --location $LOCATION \
     --environment-variables \
         SPRING_PROFILES_ACTIVE=prod \
@@ -147,6 +149,9 @@ az container create \
         REDIS_PASSWORD=$REDIS_KEY \
         PORT=8080 \
         CORS_ALLOWED_ORIGINS=https://aegis-portal.azurewebsites.net \
+        DATABASE_URL=jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/aegis_security \
+        DATABASE_USERNAME=4ASi2rWg4pDfPqV.root \
+        DATABASE_PASSWORD=LrdiTvlCRA4VDQKH \
     --output table
 
 # Get container instance details
