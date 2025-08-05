@@ -10,6 +10,10 @@ class UCOBankApplication : Application() {
         // Configuration constants - Azure endpoints
         const val AEGIS_API_BASE_URL = "http://192.168.20.13:8080/api"
         const val BANK_API_BASE_URL = "http://192.168.20.13:8081/api/v1"
+
+        
+
+
         
         // Fraud reporting configuration
         const val AEGIS_FRAUD_ENDPOINT = "/admin/fraud-report"

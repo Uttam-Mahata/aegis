@@ -82,6 +82,78 @@ public class UserInitializationService {
             logger.info("Created KYC and security questions for demo2");
         }
         
+        // Create sample user 3
+        if (!userRepository.existsByUsername("demo3")) {
+            User user3 = new User();
+            user3.setUsername("demo3");
+            user3.setPasswordHash(passwordEncoder.encode("password123"));
+            user3.setEmail("demo3@ucobank.com");
+            user3.setFullName("Rahul Kumar");
+            user3.setPhoneNumber("+919876543212");
+            user3.setIsActive(true);
+            user3 = userRepository.save(user3);
+            logger.info("Created sample user: demo3");
+            
+            // Create KYC data for demo3
+            kycService.createOrUpdateKYC(user3, "9012", "LMNOP9012Q");
+            
+            // Create security questions for demo3
+            kycService.createOrUpdateSecurityQuestion(user3, "mother_maiden_name", 
+                "What is your mother's maiden name?", "kumar");
+            kycService.createOrUpdateSecurityQuestion(user3, "first_school", 
+                "What was the name of your first school?", "jnv");
+            
+            logger.info("Created KYC and security questions for demo3");
+        }
+        
+        // Create sample user 4
+        if (!userRepository.existsByUsername("demo4")) {
+            User user4 = new User();
+            user4.setUsername("demo4");
+            user4.setPasswordHash(passwordEncoder.encode("password123"));
+            user4.setEmail("demo4@ucobank.com");
+            user4.setFullName("Neha Singh");
+            user4.setPhoneNumber("+919876543213");
+            user4.setIsActive(true);
+            user4 = userRepository.save(user4);
+            logger.info("Created sample user: demo4");
+            
+            // Create KYC data for demo4
+            kycService.createOrUpdateKYC(user4, "3456", "RSTUV3456W");
+            
+            // Create security questions for demo4
+            kycService.createOrUpdateSecurityQuestion(user4, "mother_maiden_name", 
+                "What is your mother's maiden name?", "singh");
+            kycService.createOrUpdateSecurityQuestion(user4, "first_school", 
+                "What was the name of your first school?", "cms");
+            
+            logger.info("Created KYC and security questions for demo4");
+        }
+        
+        // Create sample user 5
+        if (!userRepository.existsByUsername("demo5")) {
+            User user5 = new User();
+            user5.setUsername("demo5");
+            user5.setPasswordHash(passwordEncoder.encode("password123"));
+            user5.setEmail("demo5@ucobank.com");
+            user5.setFullName("Amit Verma");
+            user5.setPhoneNumber("+919876543214");
+            user5.setIsActive(true);
+            user5 = userRepository.save(user5);
+            logger.info("Created sample user: demo5");
+            
+            // Create KYC data for demo5
+            kycService.createOrUpdateKYC(user5, "7890", "XYZAB7890C");
+            
+            // Create security questions for demo5
+            kycService.createOrUpdateSecurityQuestion(user5, "mother_maiden_name", 
+                "What is your mother's maiden name?", "verma");
+            kycService.createOrUpdateSecurityQuestion(user5, "first_school", 
+                "What was the name of your first school?", "aps");
+            
+            logger.info("Created KYC and security questions for demo5");
+        }
+        
         // Create admin user
         if (!userRepository.existsByUsername("admin")) {
             User adminUser = new User();
