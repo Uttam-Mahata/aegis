@@ -149,7 +149,7 @@ az container create \
         REDIS_PASSWORD=$REDIS_KEY \
         PORT=8080 \
         CORS_ALLOWED_ORIGINS=https://aegis-portal.azurewebsites.net \
-        DATABASE_URL=jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/aegis_security \
+        DATABASE_URL=jdbc:mysql://gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/aegis_security_v3 \
         DATABASE_USERNAME=4ASi2rWg4pDfPqV.root \
         DATABASE_PASSWORD=LrdiTvlCRA4VDQKH \
     --output table

@@ -95,12 +95,14 @@ public class PolicyManagementService {
         
         // Update rules
         if (policyRequest.getRules() != null) {
-            // Clear existing rules and add new ones
+            // Clear existing rules
             existingPolicy.getRules().clear();
-            List<PolicyRule> newRules = policyRequest.getRules().stream()
-                    .map(ruleRequest -> convertToRule(ruleRequest, existingPolicy))
-                    .collect(Collectors.toList());
-            existingPolicy.setRules(newRules);
+            
+            // Add new rules directly to the existing collection
+            policyRequest.getRules().forEach(ruleRequest -> {
+                PolicyRule newRule = convertToRule(ruleRequest, existingPolicy);
+                existingPolicy.getRules().add(newRule);
+            });
         }
         
         Policy savedPolicy = policyRepository.save(existingPolicy);

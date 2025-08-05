@@ -149,9 +149,15 @@ public class Policy {
     }
     
     public void setRules(List<PolicyRule> rules) {
-        this.rules = rules;
+        if (this.rules == null) {
+            this.rules = new ArrayList<>();
+        }
+        this.rules.clear();
         if (rules != null) {
-            rules.forEach(rule -> rule.setPolicy(this));
+            rules.forEach(rule -> {
+                rule.setPolicy(this);
+                this.rules.add(rule);
+            });
         }
     }
     
