@@ -61,6 +61,22 @@ class SignedRequestInterceptor : Interceptor {
                 requestBuilder.header("Authorization", "Bearer $token")
             }
             
+            // Add transaction amount for policy validation if it's a transfer
+            if (original.url.encodedPath.contains("/transfer") && requestBody != null) {
+                try {
+                    // Extract amount from request body for policy validation
+                    // This is a simple extraction - in production use proper JSON parsing
+                    val amountRegex = """"amount"\s*:\s*([0-9.]+)""".toRegex()
+                    val matchResult = amountRegex.find(requestBody)
+                    matchResult?.groupValues?.get(1)?.let { amount ->
+                        requestBuilder.header("X-Transaction-Amount", amount)
+                        Log.d(TAG, "Added transaction amount header: $amount")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not extract transaction amount", e)
+                }
+            }
+            
             val signedRequest = requestBuilder.build()
             
             Log.d(TAG, "Request signed successfully for ${original.url.encodedPath}")

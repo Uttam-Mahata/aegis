@@ -2,7 +2,9 @@ package com.gradientgeeks.aegis.sfe.service;
 
 import com.gradientgeeks.aegis.sfe.dto.SignatureValidationRequest;
 import com.gradientgeeks.aegis.sfe.entity.Policy;
+import com.gradientgeeks.aegis.sfe.entity.PolicyRule;
 import com.gradientgeeks.aegis.sfe.entity.PolicyViolation;
+import com.gradientgeeks.aegis.sfe.repository.PolicyRepository;
 import com.gradientgeeks.aegis.sfe.repository.PolicyViolationRepository;
 import com.gradientgeeks.aegis.sfe.repository.RegistrationKeyRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,6 +31,9 @@ public class PolicyEnforcementService {
     
     @Autowired
     private RegistrationKeyRepository registrationKeyRepository;
+    
+    @Autowired
+    private PolicyRepository policyRepository;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -77,7 +82,20 @@ public class PolicyEnforcementService {
             PolicyViolation violation = new PolicyViolation();
             violation.setDeviceId(request.getDeviceId());
             violation.setOrganization(organization);
-            violation.setPolicy(validationResult.getViolatedPolicy());
+            
+            // Ensure policy is attached to persistence context
+            Policy violatedPolicy = validationResult.getViolatedPolicy();
+            if (violatedPolicy != null && violatedPolicy.getId() != null) {
+                // Re-attach the policy to the current persistence context
+                violatedPolicy = policyRepository.findById(violatedPolicy.getId()).orElse(null);
+            }
+            
+            if (violatedPolicy == null) {
+                logger.error("Cannot log violation - violated policy is null or not found");
+                throw new RuntimeException("Violated policy not found");
+            }
+            
+            violation.setPolicy(violatedPolicy);
             violation.setViolatedRule(validationResult.getViolatedRule());
             violation.setActionTaken(validationResult.getEnforcementLevel());
             violation.setIpAddress(request.getIpAddress());

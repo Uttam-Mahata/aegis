@@ -7,6 +7,7 @@ import com.gradientgeeks.ageis.backendapp.entity.Transaction;
 import com.gradientgeeks.ageis.backendapp.entity.TransactionStatus;
 import com.gradientgeeks.ageis.backendapp.entity.TransactionType;
 import com.gradientgeeks.ageis.backendapp.exception.InvalidTransactionException;
+import com.gradientgeeks.ageis.backendapp.repository.AccountRepository;
 import com.gradientgeeks.ageis.backendapp.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -33,12 +36,14 @@ public class TransactionService {
     private static final Logger logger = LoggerFactory.getLogger(TransactionService.class);
     
     private final TransactionRepository transactionRepository;
+    private final AccountRepository accountRepository;
     private final AccountService accountService;
     private final AegisIntegrationService aegisIntegrationService;
     
-    public TransactionService(TransactionRepository transactionRepository, AccountService accountService,
-                            AegisIntegrationService aegisIntegrationService) {
+    public TransactionService(TransactionRepository transactionRepository, AccountRepository accountRepository,
+                            AccountService accountService, AegisIntegrationService aegisIntegrationService) {
         this.transactionRepository = transactionRepository;
+        this.accountRepository = accountRepository;
         this.accountService = accountService;
         this.aegisIntegrationService = aegisIntegrationService;
     }
@@ -328,5 +333,105 @@ public class TransactionService {
         LocalDateTime startOfDay = date.withHour(0).withMinute(0).withSecond(0).withNano(0);
         LocalDateTime endOfDay = date.withHour(23).withMinute(59).withSecond(59).withNano(999999999);
         return transactionRepository.findByCreatedAtBetween(startOfDay, endOfDay);
+    }
+    
+    /**
+     * Get user transaction statistics for policy enforcement.
+     * Calculates daily, weekly and monthly transaction counts and amounts.
+     * 
+     * @param userId The user ID to get statistics for
+     * @return Map containing transaction statistics
+     */
+    public Map<String, Object> getUserTransactionStatistics(Long userId) {
+        Map<String, Object> statistics = new HashMap<>();
+        
+        try {
+            // Get all accounts for the user
+            List<Account> userAccounts = accountRepository.findByUserId(userId.toString());
+            
+            if (userAccounts.isEmpty()) {
+                logger.debug("No accounts found for user: {}", userId);
+                return getEmptyStatistics();
+            }
+            
+            // Calculate time boundaries
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime startOfDay = now.withHour(0).withMinute(0).withSecond(0).withNano(0);
+            LocalDateTime startOfWeek = now.minusDays(7);
+            LocalDateTime startOfMonth = now.minusDays(30);
+            
+            // Initialize counters
+            int dailyCount = 0;
+            BigDecimal dailyAmount = BigDecimal.ZERO;
+            int weeklyCount = 0;
+            BigDecimal weeklyAmount = BigDecimal.ZERO;
+            int monthlyCount = 0;
+            BigDecimal monthlyAmount = BigDecimal.ZERO;
+            
+            // Get all account IDs for the user
+            List<UUID> accountIds = userAccounts.stream()
+                    .map(Account::getId)
+                    .toList();
+            
+            // Get all transactions for user's accounts in the last 30 days
+            List<Transaction> transactions = transactionRepository.findByAccountIdsAndDateRange(accountIds, startOfMonth, now);
+            
+            // Process transactions
+            for (Transaction transaction : transactions) {
+                // Only count outgoing transactions (from user's accounts) and completed ones
+                boolean isOutgoing = accountIds.contains(transaction.getFromAccountId());
+                if (isOutgoing && transaction.getStatus() == TransactionStatus.COMPLETED) {
+                    
+                    BigDecimal amount = transaction.getAmount();
+                    
+                    // Monthly statistics (all transactions in the period)
+                    monthlyCount++;
+                    monthlyAmount = monthlyAmount.add(amount);
+                    
+                    // Weekly statistics
+                    if (transaction.getCreatedAt().isAfter(startOfWeek)) {
+                        weeklyCount++;
+                        weeklyAmount = weeklyAmount.add(amount);
+                    }
+                    
+                    // Daily statistics
+                    if (transaction.getCreatedAt().isAfter(startOfDay)) {
+                        dailyCount++;
+                        dailyAmount = dailyAmount.add(amount);
+                    }
+                }
+            }
+            
+            // Populate statistics map
+            statistics.put("dailyCount", dailyCount);
+            statistics.put("dailyAmount", dailyAmount.doubleValue());
+            statistics.put("weeklyCount", weeklyCount);
+            statistics.put("weeklyAmount", weeklyAmount.doubleValue());
+            statistics.put("monthlyCount", monthlyCount);
+            statistics.put("monthlyAmount", monthlyAmount.doubleValue());
+            
+            logger.debug("User {} transaction statistics - Daily: {} transactions, {} amount", 
+                        userId, dailyCount, dailyAmount);
+            
+            return statistics;
+            
+        } catch (Exception e) {
+            logger.error("Error calculating transaction statistics for user: {}", userId, e);
+            return getEmptyStatistics();
+        }
+    }
+    
+    /**
+     * Returns empty statistics map with zero values.
+     */
+    private Map<String, Object> getEmptyStatistics() {
+        Map<String, Object> statistics = new HashMap<>();
+        statistics.put("dailyCount", 0);
+        statistics.put("dailyAmount", 0.0);
+        statistics.put("weeklyCount", 0);
+        statistics.put("weeklyAmount", 0.0);
+        statistics.put("monthlyCount", 0);
+        statistics.put("monthlyAmount", 0.0);
+        return statistics;
     }
 }

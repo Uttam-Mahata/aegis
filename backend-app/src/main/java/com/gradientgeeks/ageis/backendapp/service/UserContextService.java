@@ -40,6 +40,9 @@ public class UserContextService {
     @Autowired
     private AnonymizedMappingService anonymizedMappingService;
     
+    @Autowired
+    private TransactionService transactionService;
+    
     /**
      * Extracts user metadata from authenticated user session
      */
@@ -75,6 +78,10 @@ public class UserContextService {
             // Risk factors
             Map<String, Object> riskFactors = extractRiskFactors(user, deviceId);
             metadata.put("riskFactors", riskFactors);
+            
+            // User limits (transaction limits)
+            Map<String, Object> userLimits = extractUserLimits(user);
+            metadata.put("userLimits", userLimits);
             
             logger.debug("Extracted user metadata for anonymized user: {}", anonymizedUserId);
             return metadata;
@@ -173,18 +180,35 @@ public class UserContextService {
     
     /**
      * Determines account tier based on user's primary account
+     * Maps account types to tiers for policy evaluation
      */
     private String determineAccountTier(User user) {
         List<Account> accounts = accountRepository.findByUserId(user.getId().toString());
         
         if (accounts.isEmpty()) {
-            return "SAVINGS"; // Default to SAVINGS
+            return "BASIC"; // Default to BASIC tier
         }
         
-        // Return the account type of the first account (primary account)
-        // In a real system, you might want to select based on priority or user preference
-        Account primaryAccount = accounts.get(0);
-        return primaryAccount.getAccountType().toString();
+        // Get the highest tier account
+        AccountType highestType = accounts.stream()
+            .map(Account::getAccountType)
+            .reduce((type1, type2) -> {
+                // Define priority order
+                if (type1 == AccountType.CURRENT || type2 == AccountType.CURRENT) return AccountType.CURRENT;
+                if (type1 == AccountType.SAVINGS || type2 == AccountType.SAVINGS) return AccountType.SAVINGS;
+                return type1;
+            })
+            .orElse(AccountType.SAVINGS);
+        
+        // Map account types to tiers
+        switch (highestType) {
+            case CURRENT:
+                return "CORPORATE"; // Current accounts are typically for businesses
+            case SAVINGS:
+                return "BASIC"; // Regular savings accounts
+            default:
+                return "BASIC";
+        }
     }
     
     /**
@@ -268,6 +292,45 @@ public class UserContextService {
         }
         
         return true; // New/unknown device
+    }
+    
+    /**
+     * Extracts user transaction limits
+     */
+    private Map<String, Object> extractUserLimits(User user) {
+        Map<String, Object> userLimits = new HashMap<>();
+        
+        try {
+            // Get transaction statistics for the user
+            Map<String, Object> transactionStats = transactionService.getUserTransactionStatistics(user.getId());
+            
+            // Daily limits
+            userLimits.put("dailyTransactionCount", transactionStats.getOrDefault("dailyCount", 0));
+            userLimits.put("dailyTransactionAmount", transactionStats.getOrDefault("dailyAmount", 0.0));
+            
+            // Weekly limits  
+            userLimits.put("weeklyTransactionCount", transactionStats.getOrDefault("weeklyCount", 0));
+            userLimits.put("weeklyTransactionAmount", transactionStats.getOrDefault("weeklyAmount", 0.0));
+            
+            // Monthly limits
+            userLimits.put("monthlyTransactionCount", transactionStats.getOrDefault("monthlyCount", 0));
+            userLimits.put("monthlyTransactionAmount", transactionStats.getOrDefault("monthlyAmount", 0.0));
+            
+            logger.debug("Extracted user limits - Daily amount: {}, Daily count: {}", 
+                userLimits.get("dailyTransactionAmount"), userLimits.get("dailyTransactionCount"));
+            
+        } catch (Exception e) {
+            logger.warn("Could not extract user limits for user: {}", user.getUsername(), e);
+            // Set default values if extraction fails
+            userLimits.put("dailyTransactionCount", 0);
+            userLimits.put("dailyTransactionAmount", 0.0);
+            userLimits.put("weeklyTransactionCount", 0);
+            userLimits.put("weeklyTransactionAmount", 0.0);
+            userLimits.put("monthlyTransactionCount", 0);
+            userLimits.put("monthlyTransactionAmount", 0.0);
+        }
+        
+        return userLimits;
     }
     
     /**

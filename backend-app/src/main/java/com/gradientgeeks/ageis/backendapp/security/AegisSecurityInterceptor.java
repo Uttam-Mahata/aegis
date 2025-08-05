@@ -1,5 +1,6 @@
 package com.gradientgeeks.ageis.backendapp.security;
 
+import com.gradientgeeks.ageis.backendapp.config.PolicyEnforcementConfig;
 import com.gradientgeeks.ageis.backendapp.dto.SignatureValidationResponse;
 import com.gradientgeeks.ageis.backendapp.exception.UnauthorizedException;
 import com.gradientgeeks.ageis.backendapp.service.AegisIntegrationService;
@@ -11,6 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -33,6 +37,12 @@ public class AegisSecurityInterceptor implements HandlerInterceptor {
     
     @Autowired
     private UserContextService userContextService;
+    
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+    
+    @Autowired
+    private PolicyEnforcementConfig policyEnforcementConfig;
     
     @Value("${security.request.signature.header}")
     private String signatureHeader;
@@ -80,50 +90,118 @@ public class AegisSecurityInterceptor implements HandlerInterceptor {
         
         // Extract user metadata for policy enforcement
         Map<String, Object> userMetadata = null;
+        String username = null;
         
-        // Try to get username from session if available
-        HttpSession session = request.getSession(false);
-        if (session != null) {
-            String username = (String) session.getAttribute("username");
-            if (username != null) {
-                // Determine transaction context based on URI
-                String transactionType = determineTransactionType(request.getRequestURI());
-                String beneficiaryType = extractBeneficiaryType(request);
-                
-                // Extract transaction amount if this is a transfer
-                Object transactionAmount = null;
-                if ("TRANSFER".equals(transactionType) && request.getContentLength() > 0) {
-                    transactionAmount = extractTransactionAmount(request);
-                }
-                
-                // Extract user metadata for policy enforcement
-                userMetadata = userContextService.extractUserMetadata(
-                        username, 
-                        deviceId, 
-                        transactionType,
-                        transactionAmount,
-                        beneficiaryType
-                );
-                
-                logger.debug("Extracted user metadata for policy enforcement: {}", 
-                           userMetadata != null ? userMetadata.keySet() : "none");
-                if (transactionAmount != null) {
-                    logger.debug("Transaction amount: {}", transactionAmount);
+        // First try to get username from SecurityContext (set by JWT filter)
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() && 
+            !(authentication instanceof AnonymousAuthenticationToken)) {
+            username = authentication.getName();
+            logger.debug("Got username from SecurityContext: {}", username);
+        }
+        
+        // If not found, try to get username from JWT token in Authorization header
+        if (username == null) {
+            String authorizationHeader = request.getHeader("Authorization");
+            if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+                String token = authorizationHeader.substring(7);
+                try {
+                    username = jwtTokenProvider.getUsernameFromToken(token);
+                    logger.debug("Extracted username from JWT token: {}", username);
+                } catch (Exception e) {
+                    logger.debug("Could not extract username from JWT token: {}", e.getMessage());
                 }
             }
         }
         
-        // Validate signature with Aegis API including user metadata
-        SignatureValidationResponse validationResponse = aegisIntegrationService.validateSignatureWithMetadata(
-                deviceId,
-                signature,
-                request.getMethod(),
-                request.getRequestURI(),
-                timestamp,
-                nonce,
-                bodyHash,
-                userMetadata
+        // Fall back to session if JWT extraction failed
+        if (username == null) {
+            HttpSession session = request.getSession(false);
+            if (session != null) {
+                username = (String) session.getAttribute("username");
+                logger.debug("Got username from session: {}", username);
+            }
+        }
+        
+        // Check if this endpoint requires policy enforcement
+        boolean requiresPolicy = policyEnforcementConfig.requiresPolicyEnforcement(
+                request.getMethod(), 
+                request.getRequestURI()
         );
+        
+        logger.debug("Policy enforcement required for {} {}: {}", 
+                    request.getMethod(), request.getRequestURI(), requiresPolicy);
+        
+        // Only extract metadata if policy enforcement is required AND we have a username
+        if (requiresPolicy && username != null) {
+            // Determine transaction context based on URI
+            String transactionType = determineTransactionType(request.getRequestURI());
+            String beneficiaryType = extractBeneficiaryType(request);
+            
+            // Extract transaction amount if this is a transfer
+            Object transactionAmount = null;
+            if ("TRANSFER".equals(transactionType) && request.getContentLength() > 0) {
+                // For secure transfer endpoints, we can't extract amount from encrypted payload
+                // The amount will need to be passed via a header or query parameter
+                String amountHeader = request.getHeader("X-Transaction-Amount");
+                if (amountHeader != null) {
+                    try {
+                        transactionAmount = Double.parseDouble(amountHeader);
+                        logger.debug("Got transaction amount from header: {}", transactionAmount);
+                    } catch (NumberFormatException e) {
+                        logger.debug("Invalid transaction amount header: {}", amountHeader);
+                    }
+                } else {
+                    // Try to extract from non-encrypted payload
+                    transactionAmount = extractTransactionAmount(request);
+                }
+            }
+            
+            // Extract user metadata for policy enforcement
+            userMetadata = userContextService.extractUserMetadata(
+                    username, 
+                    deviceId, 
+                    transactionType,
+                    transactionAmount,
+                    beneficiaryType
+            );
+            
+            logger.debug("Extracted user metadata for policy enforcement: {}", 
+                       userMetadata != null ? userMetadata.keySet() : "none");
+            if (transactionAmount != null) {
+                logger.debug("Transaction amount: {}", transactionAmount);
+            }
+        } else if (requiresPolicy && username == null) {
+            logger.warn("Policy enforcement required but no username available for endpoint: {} {}", 
+                       request.getMethod(), request.getRequestURI());
+        }
+        
+        // Validate signature - use appropriate method based on policy requirement
+        SignatureValidationResponse validationResponse;
+        if (requiresPolicy && userMetadata != null) {
+            // Validate with policy enforcement
+            validationResponse = aegisIntegrationService.validateSignatureWithMetadata(
+                    deviceId,
+                    signature,
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    timestamp,
+                    nonce,
+                    bodyHash,
+                    userMetadata
+            );
+        } else {
+            // Simple signature validation without policy
+            validationResponse = aegisIntegrationService.validateSignature(
+                    deviceId,
+                    signature,
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    timestamp,
+                    nonce,
+                    bodyHash
+            );
+        }
         
         if (!validationResponse.isValid()) {
             logger.warn("Invalid signature for device: {} - {}", deviceId, validationResponse.getMessage());
