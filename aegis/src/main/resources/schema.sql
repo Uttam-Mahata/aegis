@@ -38,11 +38,10 @@ CREATE TABLE IF NOT EXISTS registration_keys (
 CREATE INDEX IF NOT EXISTS idx_registration_keys_client_id ON registration_keys(client_id);
 CREATE INDEX IF NOT EXISTS idx_registration_keys_registration_key ON registration_keys(registration_key);
 
--- Drop the old table if it exists to recreate with new structure
-DROP TABLE IF EXISTS devices;
+
 
 -- Create devices table with composite primary key
-CREATE TABLE devices (
+CREATE TABLE IF NOT EXISTS devices (
     device_id VARCHAR(255) NOT NULL,
     client_id VARCHAR(100) NOT NULL,
     secret_key VARCHAR(512) NOT NULL,
